@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-07
+
 ### Added
 
 - `--hashcat-username` selects the username field in hashcat output lines: `sam` (sAMAccountName, the default), `upn`, `rid`, or `sid`.
@@ -94,5 +96,6 @@ The codebase includes cryptographic modules for the items below, but they are no
 - DPAPI domain backup keys, LAPS v1/v2, BitLocker recovery keys, and Windows Hello / FIDO2 key credentials
 - gMSA managed passwords and KDS root keys (require MS-GKDI key derivation)
 
-[Unreleased]: https://github.com/StrongWind1/NTDSWolf/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/StrongWind1/NTDSWolf/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/StrongWind1/NTDSWolf/releases/tag/v0.2.0

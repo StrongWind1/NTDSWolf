@@ -19,8 +19,6 @@
 
 NTDSWolf parses Windows Active Directory NTDS.dit database files and extracts password hashes (NT/LM and history), Kerberos keys, WDigest hashes, and cleartext passwords, along with core object metadata for users, computers, groups, trusts, and domains. It produces structured output in multiple formats suitable for downstream analysis and credential cracking tools.
 
-> **Project status: beta (v0.2.0).** NT/LM hashes and history, Kerberos keys (AES256/AES128/RC4/DES), WDigest, cleartext passwords, inter-realm trust keys (RC4 + AES), LAPS v1/v2 passwords, gMSA/dMSA managed passwords (offline MS-GKDI derivation), and key credentials are extracted and verified against real NTDS databases (Windows Server 2012–2025) — *MSA secrets round-trip-authenticate against a live DC. DPAPI backup keys and BitLocker recovery keys are wired but not yet verified against real data.
-
 ## Why NTDSWolf?
 
 - **Pure Python** -- runs on Linux, macOS, and Windows with no .NET dependency.

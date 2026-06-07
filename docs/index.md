@@ -4,8 +4,6 @@ Offline NTDS.dit parser and credential extractor for Active Directory forensics,
 
 NTDSWolf parses Windows Active Directory NTDS.dit database files and extracts password hashes (NT/LM and history), Kerberos keys, WDigest hashes, and cleartext passwords, along with core object metadata for users, computers, groups, trusts, and domains. It produces structured output in multiple formats suitable for downstream analysis and credential cracking.
 
-> **Project status: beta (v0.2.0).** NT/LM and Kerberos hash extraction, object decoding, inter-realm trust keys, LAPS v1/v2 passwords, gMSA/dMSA managed passwords (offline MS-GKDI derivation), and key credentials are implemented, wired, and verified against real NTDS databases -- the *MSA and trust keys round-trip-authenticate against a live DC. DPAPI backup keys and BitLocker are wired but not yet verified. See [Credential Types](guide/credential-types.md).
-
 **[Read the Guide](guide/index.md)** · **[Install](getting-started/installation.md)** · **[CLI Reference](reference/cli.md)**
 
 ## Why NTDSWolf
@@ -36,10 +34,6 @@ See the [installation guide](getting-started/installation.md) for setup details,
 ## How it works
 
 NTDSWolf runs a three-phase pipeline: it opens the ESE database and loads the AD schema, extracts the boot key and decrypts the Password Encryption Keys, then iterates every object, decodes its attributes (resolving links natively via dissect), decrypts its credentials, and writes the result. The [guide](guide/index.md) walks through each phase.
-
-## Disclaimer
-
-NTDSWolf is intended for authorized digital forensics, penetration testing, and security auditing only. You must have explicit permission to access the data you process with it. The authors are not responsible for any misuse or damage caused by this tool.
 
 ## License
 
