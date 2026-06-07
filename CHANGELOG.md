@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Every object now carries an `_unmapped` field in the structured formats (NDJSON/JSON/CSV): a raw passthrough of every stored LDAP attribute and linked attribute the curated decoders did not already parse, so nothing in the database is dropped (NTDSWolf's primary goal). Values are kept verbatim when printable ASCII (0x20-0x7E) and hex-encoded otherwise; dissect's internal structural columns and already-curated attributes are excluded. Enumeration is per-attribute and falls back to the raw value, so a single undecodable attribute (e.g. a schema `attributeID` with no OID mapping) no longer drops the rest. This brings attribute coverage to parity with, and beyond, ntdissector. The hashcat and pwdump outputs are unaffected.
+
 ## [0.3.0] - 2026-06-07
 
 ### Added

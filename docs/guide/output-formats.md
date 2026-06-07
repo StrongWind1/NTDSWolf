@@ -4,6 +4,8 @@ Select an output format with `--format` / `-f`. Output is written to the directo
 
 For the structured formats (NDJSON, JSON, CSV), each object class is written to its own file. Common classes get friendly names (`user` → `users.ndjson`, `computer` → `computers.csv`, `trustedDomain` → `trusts.json`, `groupPolicyContainer` → `gpos.ndjson`, `domainDNS` → `domains.ndjson`); any other class name is lowercased and sanitized to a filesystem-safe form (so `dHCPClass` → `dhcpclass.ndjson`, never the awkward `dHCPClasss`).
 
+Every object also includes an `_unmapped` field: a complete passthrough of every stored LDAP attribute and linked attribute that the curated decoders do not already parse, so nothing in the database is dropped. Each value is kept verbatim when it is printable ASCII (`0x20`–`0x7E`) and hex-encoded otherwise. The hashcat and pwdump cracking formats are unaffected — they emit only credential material.
+
 ## NDJSON (default)
 
 One JSON object per line, one file per object class. Compatible with `jq`, SIEM ingestion, and streaming parsers.

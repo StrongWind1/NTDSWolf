@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from dissect.database.ese.ntds.schema import BOOTSTRAP_COLUMNS
 from dissect.database.ese.ntds.sd import SecurityDescriptor
 
 from ntdswolf.constants import NEVER_EXPIRES, NEVER_EXPIRES_ALT, SID_RSPLIT_PART_COUNT, TIMESTAMP_NOT_SET, UUID_BYTE_LENGTH
@@ -42,6 +43,15 @@ if TYPE_CHECKING:
     from ntdswolf.crypto.pek import PekDecryptor
 
 logger = logging.getLogger(__name__)
+
+# Dissect surfaces the NTDS datatable's fixed structural columns (DNT, PDNT,
+# NCDNT, Ancestors, ...) as pseudo-attributes via Object.as_dict(); they are not
+# real LDAP attributes, so the raw passthrough excludes them.
+_INTERNAL_COLUMNS: frozenset[str] = frozenset(str(entry[0]) for entry in BOOTSTRAP_COLUMNS)
+
+# Printable-ASCII range for the raw passthrough; values outside it are hex-encoded.
+_ASCII_MIN: int = 0x20  # space
+_ASCII_MAX: int = 0x7E  # tilde
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +100,47 @@ class DecoderContext:
     errors: list[str] = field(default_factory=list)  # Non-fatal errors encountered during decode
 
 
+def _encode_passthrough(value: object) -> object:
+    """Encode a decoded attribute value for the raw passthrough.
+
+    Printable-ASCII text (0x20-0x7E) is kept verbatim; binary bytes and any
+    non-printable / non-ASCII value are hex-encoded so nothing is lost. Numbers,
+    booleans, and None pass through unchanged; lists and dicts are encoded
+    element-wise.
+    """
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        data = bytes(value)
+        return data.decode("ascii") if all(_ASCII_MIN <= b <= _ASCII_MAX for b in data) else data.hex()
+    if isinstance(value, str):
+        return value if all(_ASCII_MIN <= ord(c) <= _ASCII_MAX for c in value) else value.encode("utf-8", "surrogatepass").hex()
+    if isinstance(value, list):
+        return [_encode_passthrough(v) for v in value]
+    if isinstance(value, dict):
+        return {str(k): _encode_passthrough(v) for k, v in value.items()}
+    # datetime, UUID, SID, or any other decoded object: stringify, then apply the rule.
+    text = str(value)
+    return text if all(_ASCII_MIN <= ord(c) <= _ASCII_MAX for c in text) else text.encode("utf-8", "surrogatepass").hex()
+
+
+def _raw_attr_value(obj: DissectObject, name: str) -> object:
+    """Return an attribute's decoded value, falling back to its raw value on decode failure.
+
+    Some stored attributes (e.g. a schema ``attributeID`` whose ATTRTYP has no OID
+    mapping) raise when dissect decodes them; the raw value is still recoverable, so
+    the passthrough loses nothing.
+    """
+    try:
+        return obj.get(name)
+    except (AttributeError, ValueError, KeyError, TypeError, struct.error, UnicodeDecodeError, LookupError):  # fmt: skip
+        pass
+    try:
+        return obj.get(name, raw=True)
+    except (AttributeError, ValueError, KeyError, TypeError, struct.error, UnicodeDecodeError, LookupError):  # fmt: skip
+        return None
+
+
 # ---------------------------------------------------------------------------
 # BaseDecoder -- template method for all object decoders
 # ---------------------------------------------------------------------------
@@ -113,6 +164,10 @@ class BaseDecoder(ABC):
     ``_get_attr()`` helper provides safe access regardless of the concrete type.
     """
 
+    # LDAP attribute names consumed by the curated decoders during the current
+    # decode() call; the raw passthrough emits every stored attribute *except* these.
+    _accessed: set[str]
+
     def decode(self, obj: DissectObject, ctx: DecoderContext) -> dict[str, Any]:
         """Decode a dissect Object into a flat dict matching the JSON output schema.
 
@@ -129,6 +184,7 @@ class BaseDecoder(ABC):
 
         """
         result: dict[str, Any] = {}
+        self._accessed = set()
 
         try:
             # Common attributes shared by every AD object class
@@ -145,7 +201,70 @@ class BaseDecoder(ABC):
             logger.exception("Error decoding object DNT=%s", dnt)
             ctx.errors.append(f"Failed to fully decode object DNT={dnt}")
 
+        # Primary goal: dump EVERYTHING. Surface every stored LDAP attribute the
+        # curated decoders did not already consume, so nothing in the database is
+        # silently dropped (runs even on partial-decode failure above).
+        self._passthrough(obj, ctx, result)
+
         return result
+
+    def _passthrough(self, obj: DissectObject, ctx: DecoderContext, result: dict[str, Any]) -> None:
+        """Emit every stored LDAP attribute the curated decoders did not consume.
+
+        NTDSWolf's first goal is to surface everything in the database. The
+        per-class decoders parse the attributes that matter for credentials and
+        identity; this enumerates the object's remaining stored attributes (and
+        linked attributes) under ``_unmapped`` so nothing is silently dropped.
+
+        Enumeration is per-attribute (not ``Object.as_dict()``, which aborts the
+        whole object if any single attribute fails to decode -- e.g. a schema
+        ``attributeID`` whose ATTRTYP has no OID mapping): each value is decoded,
+        falling back to its raw form, and kept verbatim when printable ASCII or
+        hex-encoded otherwise. Already-curated and dissect-internal columns are skipped.
+        """
+        try:
+            columns = obj.record.as_dict()
+            schema = obj.db.data.schema
+        except (AttributeError, ValueError, KeyError, TypeError, struct.error, UnicodeDecodeError, LookupError, OSError):  # fmt: skip
+            logger.debug("record enumeration failed during raw passthrough", exc_info=True)
+            return
+
+        unmapped: dict[str, object] = {}
+        for column in columns:
+            try:
+                attr = schema.lookup_attribute(column=column)
+            except (AttributeError, ValueError, KeyError, TypeError, struct.error):  # fmt: skip
+                continue
+            if attr is None:
+                continue
+            name = str(attr.name)
+            if name in self._accessed or name in result or name in _INTERNAL_COLUMNS:
+                continue
+            unmapped[name] = _encode_passthrough(_raw_attr_value(obj, name))
+
+        # Linked attributes (member / memberOf / masteredBy / serverReference / ...)
+        # live in the link table, not the record columns, so enumerate them too.
+        if ctx.include_links:
+            self._add_linked_attrs(obj, result, unmapped)
+
+        if unmapped:
+            result["_unmapped"] = unmapped
+
+    def _add_linked_attrs(self, obj: DissectObject, result: dict[str, Any], unmapped: dict[str, object]) -> None:
+        """Add forward and back linked attributes (as lists of target DNs) to *unmapped*."""
+        try:
+            edges = list(obj.links()) + list(obj.backlinks())
+        except (AttributeError, ValueError, KeyError, TypeError, struct.error, NotImplementedError):  # fmt: skip
+            return
+        linked: dict[str, list[object]] = {}
+        for attr_name, target in edges:
+            name = str(attr_name)
+            if name in self._accessed or name in result:
+                continue
+            dn = getattr(target, "dn", None) or getattr(target, "name", None)
+            linked.setdefault(name, []).append(_encode_passthrough(dn))
+        for name, values in linked.items():
+            unmapped.setdefault(name, values)
 
     def _decode_common_attrs(self, obj: DissectObject, result: dict[str, Any]) -> None:
         """Extract attributes present on every AD object regardless of class.
@@ -320,13 +439,13 @@ class BaseDecoder(ABC):
 
     # --- Helper methods ---
 
-    @staticmethod
-    def _get_attr(obj: DissectObject, name: str, default: object = None, *, raw: bool = False) -> Any:  # noqa: ANN401 -- dissect attribute values are dynamically typed
+    def _get_attr(self, obj: DissectObject, name: str, default: object = None, *, raw: bool = False) -> Any:  # noqa: ANN401 -- dissect attribute values are dynamically typed
         """Safely retrieve an attribute from a dissect Object.
 
         Catches AttributeError (attribute not in schema) and any other
         exceptions that dissect might raise for missing or corrupt data.
-        Returns *default* on failure.
+        Returns *default* on failure. Records *name* as consumed so the raw
+        passthrough does not re-emit attributes the curated decoders already parse.
 
         Args:
             obj: A dissect.database Object instance.
@@ -338,6 +457,9 @@ class BaseDecoder(ABC):
             The attribute value, or *default* if unavailable.
 
         """
+        accessed = getattr(self, "_accessed", None)
+        if accessed is not None:
+            accessed.add(name)
         try:
             if raw:
                 return obj.get(name, raw=True)
