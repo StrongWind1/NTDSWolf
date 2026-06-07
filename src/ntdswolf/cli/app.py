@@ -132,8 +132,8 @@ def extract(
     include_deleted: Annotated[
         bool,
         typer.Option(
-            "--include-deleted/--exclude-deleted",
-            help="Include or exclude tombstoned (deleted) objects.",
+            "--include-deleted",
+            help="Include tombstoned (deleted) objects (excluded by default).",
         ),
     ] = False,
     naming: Annotated[

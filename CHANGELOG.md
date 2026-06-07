@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed the redundant `--exclude-deleted` flag; `--include-deleted` is now a single switch (deleted objects are excluded by default).
+
 ## [0.2.0] - 2026-06-07
 
 ### Added

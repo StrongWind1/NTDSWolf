@@ -81,8 +81,7 @@ Options:
                                (default: all)
   -w, --workers N              Number of parallel workers (default: 1)
   --no-history                 Exclude password history hashes
-  --include-deleted            Include deleted (tombstoned) objects
-  --exclude-deleted            Exclude deleted objects (default)
+  --include-deleted            Include deleted (tombstoned) objects (excluded by default)
   --naming MODE                Object naming: dn, sam, cn (default: dn)
   --raw                        Include raw/unmapped attributes in output
   -v, --verbose                Verbose logging to stderr
