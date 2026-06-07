@@ -10,7 +10,7 @@ blob (which would duplicate what dissect already does).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from ntdswolf.constants import KERBEROS_ETYPE_NAMES
 
@@ -18,10 +18,13 @@ from ntdswolf.constants import KERBEROS_ETYPE_NAMES
 def merge_supplemental(supp: dict[str, Any], creds: dict[str, Any]) -> None:
     """Merge dissect's decoded supplementalCredentials dict into ``creds``.
 
-    ``Primary:Kerberos-Newer-Keys`` / ``Primary:Kerberos`` carry a ``Credentials``
-    list of ``{KeyType, Key, IterationCount}``; ``Primary:WDigest`` is a list of
-    16-byte MD5 hashes; ``Primary:CLEARTEXT`` is the reversibly encrypted
-    password; ``Primary:NTLM-Strong-NTOWF`` is a 16-byte value.
+    ``Primary:Kerberos-Newer-Keys`` / ``Primary:Kerberos`` carry the current
+    ``Credentials`` plus ``OldCredentials`` / ``OlderCredentials`` (previous
+    passwords) and ``ServiceCredentials``; these surface as ``kerberos`` and, when
+    present, ``kerberosOld`` / ``kerberosOlder`` / ``kerberosService``.
+    ``Primary:WDigest`` is a list of 16-byte MD5 hashes; ``Primary:CLEARTEXT`` is
+    the reversibly encrypted password; ``Primary:NTLM-Strong-NTOWF`` is a 16-byte
+    value.
 
     Args:
         supp: dissect's decoded supplementalCredentials dict.
@@ -34,7 +37,16 @@ def merge_supplemental(supp: dict[str, Any], creds: dict[str, Any]) -> None:
     if isinstance(kerb, dict):
         default_salt = kerb.get("DefaultSalt", b"")
         salt = default_salt.decode("utf-16-le", "replace") if isinstance(default_salt, bytes) else str(default_salt)
-        creds["kerberos"] = [kerberos_key_entry(c, salt) for c in kerb.get("Credentials", []) if isinstance(c, dict)]
+        # KERB_STORED_CREDENTIAL_NEW carries four key arrays ([MS-SAMR] Primary:Kerberos-Newer-Keys).
+        # ``Credentials`` (current keys) feeds every format -- pwdump/hashcat read ``kerberos`` and
+        # secretsdump emits only this set. The previous-password (Old/Older) and SPN-salted Service
+        # key sets are surfaced under their own keys so the structured formats capture them too,
+        # without changing the secretsdump-compatible hash output.
+        creds["kerberos"] = _key_entries(kerb.get("Credentials"), salt)
+        for field, out_key in (("OldCredentials", "kerberosOld"), ("OlderCredentials", "kerberosOlder"), ("ServiceCredentials", "kerberosService")):
+            entries = _key_entries(kerb.get(field), salt)
+            if entries:
+                creds[out_key] = entries
 
     wdigest = supp.get("Primary:WDigest")
     if isinstance(wdigest, list):
@@ -47,6 +59,13 @@ def merge_supplemental(supp: dict[str, Any], creds: dict[str, Any]) -> None:
     ntowf = supp.get("Primary:NTLM-Strong-NTOWF")
     if isinstance(ntowf, bytes):
         creds["ntlmStrongNTOWF"] = ntowf.hex()
+
+
+def _key_entries(creds_list: object, default_salt: str) -> list[dict[str, Any]]:
+    """Map a KERB_KEY_DATA(_NEW) credential array to clean key entries (``[]`` if absent)."""
+    if not isinstance(creds_list, list):
+        return []
+    return [kerberos_key_entry(cast("dict[str, Any]", c), default_salt) for c in creds_list if isinstance(c, dict)]
 
 
 def kerberos_key_entry(cred: dict[str, Any], default_salt: str) -> dict[str, Any]:

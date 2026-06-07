@@ -12,7 +12,7 @@ NTDSWolf extracts NT/LM hashes and history, Kerberos keys, WDigest, cleartext, N
 | LM hashes | `dBCSPwd` | Supported |
 | NT hash history | `ntPwdHistory` | Supported |
 | LM hash history | `lmPwdHistory` | Supported |
-| Kerberos keys (AES256, AES128, RC4, DES) | `supplementalCredentials` | Supported |
+| Kerberos keys (AES256, AES128, RC4, DES) — current, previous-password, and service key sets | `supplementalCredentials` | Supported |
 | Kerberos Server 2025 keys (AES256-SHA384, AES128-SHA256) | `supplementalCredentials` | Supported |
 | WDigest hashes | `supplementalCredentials` | Supported |
 | Cleartext passwords | `supplementalCredentials` | Supported |
@@ -24,6 +24,8 @@ NTDSWolf extracts NT/LM hashes and history, Kerberos keys, WDigest, cleartext, N
 | Key credentials (WHfB / FIDO2) | `msDS-KeyCredentialLink` | Supported |
 | DPAPI backup keys (PVK + PEM) | `secret` objects | Wired (unverified) |
 | BitLocker recovery keys | `msFVE-RecoveryInformation` | Wired (unverified) |
+
+The structured formats (NDJSON/JSON/CSV) surface the four `KERB_STORED_CREDENTIAL_NEW` key arrays separately: `kerberos` (current), `kerberosOld` / `kerberosOlder` (previous passwords), and `kerberosService` (SPN-salted service keys). The hashcat and pwdump outputs emit only the current set, matching secretsdump.
 
 ## Object classes
 
