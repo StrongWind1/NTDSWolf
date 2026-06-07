@@ -1,0 +1,12 @@
+/* Custom primary palette -- slate base to match the "wolf" suite, amber accent. */
+:root {
+  --md-primary-fg-color: #2b3440;
+  --md-primary-fg-color--light: #3b4654;
+  --md-primary-fg-color--dark: #1a2029;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #1a2029;
+  --md-primary-fg-color--light: #2b3440;
+  --md-primary-fg-color--dark: #12161d;
+}

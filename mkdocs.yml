@@ -1,0 +1,106 @@
+site_name: NTDSWolf
+site_description: Offline NTDS.dit parser and credential extractor for Active Directory forensics.
+site_url: https://strongwind1.github.io/NTDSWolf/
+repo_url: https://github.com/StrongWind1/NTDSWolf
+repo_name: StrongWind1/NTDSWolf
+
+theme:
+  name: material
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Dark mode (default) — respects system preference
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    # Light mode — respects system preference
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.sections
+    - navigation.path
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - search.share
+    - header.autohide
+    - announce.dismiss
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.mark
+  - pymdownx.keys
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Guide:
+      - Overview: guide/index.md
+      - Output Formats: guide/output-formats.md
+      - Credential Types: guide/credential-types.md
+      - Windows Server Compatibility: guide/compatibility.md
+  - Installation: getting-started/installation.md
+  - CLI Reference: reference/cli.md
+
+# Internal design documents -- kept in the repository for reference, excluded
+# from the published site.
+exclude_docs: |
+  REQUIREMENTS.md
+  DESIGN.md
+  ARCHITECTURE.md
+  TASKLIST.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/StrongWind1/NTDSWolf
+      name: NTDSWolf on GitHub
+  generator: false
+
+extra_css:
+  - stylesheets/extra.css
+
+strict: true
