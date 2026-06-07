@@ -81,6 +81,9 @@ secretsdump-compatible "newer pwdump" output — byte-for-byte the files `impack
 
 This is the modern pwdump secretsdump emits: the classic `username:rid:lm:nt:::` line plus the Kerberos-key and cleartext sidecar files. Accounts that carry a userPrincipalName are prefixed with their UPN domain (`TEST.corp\test2`), exactly as secretsdump does.
 
+!!! note "Password-history padding entries"
+    For exact secretsdump parity, history lines (`username_historyN`) include the trailing PKCS7 **padding block** that secretsdump decrypts and emits as a history hash. That entry is **not a real previous password** — it is derived from encryption padding, not a stored credential. NTDSWolf keeps it so `hashes.ntds` matches `secretsdump -history` byte-for-byte, and prints a `WARNING` to stderr naming each account whose history decrypts to more hashes than its `SecretLength` declares, so the fabricated entries are easy to spot.
+
 ```bash
 ntdswolf ntds.dit --system SYSTEM --format pwdump
 ```

@@ -135,6 +135,22 @@ def pek_decrypt_secret(encrypted: bytes, pek_list: PEKList, *, keep_padding: boo
     raise BootKeyError(msg)
 
 
+def aes_secret_length(encrypted: bytes) -> int | None:
+    """Return the declared plaintext length (``SecretLength``) of an AES ENC_SECRET blob.
+
+    Only the AES (``0x13``) ENC_SECRET layout carries an explicit ``SecretLength``
+    field (4 bytes at offset 24); RC4 blobs and anything shorter than the AES
+    header return ``None``. Used to spot history blobs whose decrypted length
+    exceeds the real plaintext -- i.e. those carrying a trailing PKCS7 padding
+    block that secretsdump emits as a (fake) history hash.
+    """
+    if len(encrypted) < _ENC_SECRET_HEADER_AES:
+        return None
+    if struct.unpack_from("<H", encrypted, 0)[0] != ALGO_DB_AES:
+        return None
+    return struct.unpack_from("<I", encrypted, 24)[0]
+
+
 def _decrypt_secret_rc4(encrypted: bytes, pek_list: PEKList) -> bytes:
     """Remove the RC4 PEK layer from an encrypted attribute value.
 

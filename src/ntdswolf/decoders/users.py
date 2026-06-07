@@ -210,15 +210,16 @@ class UserDecoder(BaseDecoder):
         # passwords -- matching secretsdump's ``NTHistory[1:]`` slice. Empty-LM
         # entries are deliberately kept (not filtered): the pwdump writer pairs
         # NT/LM history by count, so the LM list length must mirror secretsdump's.
+        name = result.get("sAMAccountName") or result.get("name") or f"RID {rid}"
         nt_hist_blob = _history_blob(self._get_attr(obj, "ntPwdHistory", raw=True))
         if nt_hist_blob is not None and rid is not None:
-            creds["ntHistory"] = [h.hex() for h in decrypt_hash_history(nt_hist_blob, pek_list, rid)[1:]]
+            creds["ntHistory"] = [h.hex() for h in decrypt_hash_history(nt_hist_blob, pek_list, rid, label=f"{name} (ntPwdHistory)")[1:]]
         else:
             creds["ntHistory"] = []
 
         lm_hist_blob = _history_blob(self._get_attr(obj, "lmPwdHistory", raw=True))
         if lm_hist_blob is not None and rid is not None:
-            creds["lmHistory"] = [h.hex() for h in decrypt_hash_history(lm_hist_blob, pek_list, rid)[1:]]
+            creds["lmHistory"] = [h.hex() for h in decrypt_hash_history(lm_hist_blob, pek_list, rid, label=f"{name} (lmPwdHistory)")[1:]]
         else:
             creds["lmHistory"] = []
 

@@ -70,3 +70,23 @@ def test_decrypt_hash_history_keeps_aes_padding_block():
     blob = _wrap_pek_aes(_des_obfuscate(_NT, rid), pek_key)  # one real hash -> one padding block
     padding_artifact = _remove_des_layer(b"\x10" * 16, rid)
     assert decrypt_hash_history(blob, PEKList(keys={0: pek_key}), rid) == [_NT, padding_artifact]
+
+
+def test_decrypt_hash_history_warns_on_aes_padding(caplog):
+    # The fake padding-derived entry must be flagged on stderr (matched to secretsdump
+    # output but not a real password), naming the account/attribute.
+    rid, pek_key = 500, b"\x11" * 16
+    blob = _wrap_pek_aes(_des_obfuscate(_NT, rid), pek_key)
+    with caplog.at_level("WARNING"):
+        decrypt_hash_history(blob, PEKList(keys={0: pek_key}), rid, label="acct (ntPwdHistory)")
+    assert "padding-derived" in caplog.text
+    assert "acct (ntPwdHistory)" in caplog.text
+
+
+def test_decrypt_hash_history_no_warning_for_rc4(caplog):
+    # RC4 history has no SecretLength and no padding block -> nothing fake -> no warning.
+    rid, pek_key = 500, b"\x11" * 16
+    blob = _wrap_pek_rc4(_des_obfuscate(_NT, rid) + _des_obfuscate(_EMPTY, rid), pek_key)
+    with caplog.at_level("WARNING"):
+        decrypt_hash_history(blob, PEKList(keys={0: pek_key}), rid, label="acct")
+    assert "padding-derived" not in caplog.text

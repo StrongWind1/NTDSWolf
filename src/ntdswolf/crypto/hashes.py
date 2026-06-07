@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 from Crypto.Cipher import DES
 
-from ntdswolf.crypto.pek import BootKeyError, PEKList, pek_decrypt_secret
+from ntdswolf.crypto.pek import BootKeyError, PEKList, aes_secret_length, pek_decrypt_secret
 
 if TYPE_CHECKING:
     from ntdswolf.crypto.pek import PekDecryptor
@@ -159,7 +159,7 @@ def decrypt_lm_hash(encrypted: bytes, pek: PekDecryptor, rid: int) -> bytes | No
         return None
 
 
-def decrypt_hash_history(encrypted: bytes, pek: PekDecryptor, rid: int) -> list[bytes]:
+def decrypt_hash_history(encrypted: bytes, pek: PekDecryptor, rid: int, *, label: str = "") -> list[bytes]:
     """Decrypt ``ntPwdHistory`` / ``lmPwdHistory`` to the full list of stored hashes.
 
     Mirrors secretsdump exactly: the PEK layer is removed *without* PKCS7
@@ -181,6 +181,7 @@ def decrypt_hash_history(encrypted: bytes, pek: PekDecryptor, rid: int) -> list[
         encrypted: Raw bytes of the history attribute's ENC_SECRET blob.
         pek: Unlocked dissect ``PEK`` or ntdswolf ``PEKList`` (read for its keys).
         rid: Account RID for the DES layer.
+        label: Account/attribute label for the stderr warning about fake (padding-derived) entries.
 
     Returns:
         List of 16-byte hashes, current first (may be empty on failure).
@@ -195,6 +196,8 @@ def decrypt_hash_history(encrypted: bytes, pek: PekDecryptor, rid: int) -> list[
     except (BootKeyError, ValueError, struct.error):
         logger.debug("Failed to remove PEK layer from hash history", exc_info=True)
         return []
+
+    _warn_on_fake_history(encrypted, len(after_pek), label or f"RID {rid}")
 
     hashes: list[bytes] = []
     for i in range(len(after_pek) // _HASH_LEN):
@@ -218,3 +221,24 @@ def _pek_key_dict(pek: PekDecryptor) -> dict[int, bytes]:
     if not isinstance(raw, dict):
         return {}
     return {int(k): bytes(v) for k, v in raw.items() if isinstance(v, (bytes, bytearray))}
+
+
+def _warn_on_fake_history(encrypted: bytes, decrypted_len: int, who: str) -> None:
+    """Warn (stderr) when an AES history blob yields more hashes than ``SecretLength`` declares.
+
+    secretsdump keeps the trailing PKCS7 padding block and DES-un-obfuscates it as
+    a history entry, so any hash beyond ``SecretLength`` is fabricated -- not a real
+    previous password. We match that output for parity but flag it here so the fake
+    entries are not mistaken for real credentials. RC4 blobs carry no ``SecretLength``
+    and no padding, so they never warn.
+    """
+    secret_len = aes_secret_length(encrypted)
+    if secret_len is None or decrypted_len <= secret_len:
+        return
+    fake = (decrypted_len - secret_len) // _HASH_LEN
+    if fake > 0:
+        logger.warning(
+            "%s: %d padding-derived (fake) password-history hash(es) emitted to match secretsdump -- not real passwords",
+            who,
+            fake,
+        )
