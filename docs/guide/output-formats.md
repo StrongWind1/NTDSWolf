@@ -76,7 +76,7 @@ secretsdump-compatible "newer pwdump" output — byte-for-byte the files `impack
 | File | Contents |
 | --- | --- |
 | `hashes.ntds` | `username:rid:lm:nt:::`, with inline `username_historyN:...` lines for password history. |
-| `hashes.ntds.kerberos` | `username:<etype>:<key>` Kerberos keys (lowercase etypes; no RC4, which is already the NT hash). |
+| `hashes.ntds.kerberos` | `username:<etype>:<key>` Kerberos keys, labelled exactly as secretsdump (e.g. `aes256-cts-hmac-sha1-96`, `des-cbc-md5`; older Server 2008 databases also carry `dec-cbc-crc` and `rc4_hmac`). |
 | `hashes.ntds.cleartext` | `username:CLEARTEXT:<password>` for reversibly-encrypted passwords. |
 
 This is the modern pwdump secretsdump emits: the classic `username:rid:lm:nt:::` line plus the Kerberos-key and cleartext sidecar files. Accounts that carry a userPrincipalName are prefixed with their UPN domain (`TEST.corp\test2`), exactly as secretsdump does.

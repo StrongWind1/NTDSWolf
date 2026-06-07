@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The pwdump `hashes.ntds.kerberos` file omitted the `dec-cbc-crc` (DES-CBC-CRC) and `rc4_hmac` Kerberos keys on Windows Server 2008 databases, which store five KeyTypes in `supplementalCredentials` (2016+ store three). The writer now keys on the numeric Kerberos KeyType, mirroring `impacket`'s `KERBEROS_TYPE` table exactly (including the `0xFFFFFF74` RC4 marker and the `dec-cbc-crc` spelling), so `hashes.ntds.kerberos` is byte-identical to secretsdump across Server 2008-2022.
 - Password history (`ntPwdHistory` / `lmPwdHistory`) was silently dropped for every account, so `hashes.ntds` was missing all `_history` lines. dissect returns the blob wrapped in a one-element list (which failed an `isinstance(bytes)` check), and the AES PEK layer was PKCS7-unpadded, stripping the trailing block secretsdump keeps. History is now decrypted faithfully and `hashes.ntds` is byte-identical to `secretsdump -history` across the RC4 and AES eras (Windows Server 2008-2022). The AES padding block is kept for exact parity (secretsdump emits it as a history entry); because it is not a real password, NTDSWolf logs a stderr `WARNING` naming each account whose history decrypts to more hashes than its `SecretLength` declares.
 - Removed the redundant `--exclude-deleted` flag; `--include-deleted` is now a single switch (deleted objects are excluded by default).
 

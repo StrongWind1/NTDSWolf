@@ -125,6 +125,11 @@ KERBEROS_ETYPE_DES_CBC_CRC: int = 1  # DES-CBC(CRC) -- deprecated, legacy
 KERBEROS_ETYPE_DES_CBC_MD5: int = 3  # DES-CBC(MD5) -- deprecated, legacy
 KERBEROS_ETYPE_RC4_HMAC: int = 23  # RC4-HMAC (NTLM hash as key)
 KERBEROS_ETYPE_RC4_HMAC_EXP: int = 24  # RC4-HMAC export (40-bit) -- deprecated
+
+# Internal KeyType Windows stores for the RC4 key inside Kerberos-Newer-Keys
+# supplementalCredentials (not the wire etype 23); its value is the account NT
+# hash. impacket's NTDSHashes.KERBEROS_TYPE maps this marker to "rc4_hmac".
+KERBEROS_KEYTYPE_RC4_MS: int = 0xFFFFFF74  # 4294967156
 KERBEROS_ETYPE_AES128_CTS_HMAC_SHA1_96: int = 17  # AES128-CTS-HMAC-SHA1-96 -- per RFC 3962
 KERBEROS_ETYPE_AES256_CTS_HMAC_SHA1_96: int = 18  # AES256-CTS-HMAC-SHA1-96 -- per RFC 3962
 
@@ -139,6 +144,7 @@ KERBEROS_ETYPE_NAMES: dict[int, str] = {
     KERBEROS_ETYPE_DES_CBC_CRC: "DES-CBC-CRC",
     KERBEROS_ETYPE_DES_CBC_MD5: "DES-CBC-MD5",
     KERBEROS_ETYPE_RC4_HMAC: "RC4-HMAC",
+    KERBEROS_KEYTYPE_RC4_MS: "RC4-HMAC",
     KERBEROS_ETYPE_RC4_HMAC_EXP: "RC4-HMAC-EXP",
     KERBEROS_ETYPE_AES128_CTS_HMAC_SHA1_96: "AES128-CTS-HMAC-SHA1-96",
     KERBEROS_ETYPE_AES256_CTS_HMAC_SHA1_96: "AES256-CTS-HMAC-SHA1-96",

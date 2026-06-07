@@ -58,7 +58,12 @@ def test_history_count_is_min_of_nt_and_lm(tmp_path):
     assert (tmp_path / "hashes.ntds").read_text() == f"u:1105:{_EMPTY_LM}:{_NT}:::\n"
 
 
-def test_kerberos_lowercase_etypes_without_rc4(tmp_path):
+def test_kerberos_etypes_match_secretsdump_keytype_table(tmp_path):
+    # Keyed on the numeric KeyType, mirroring impacket's KERBEROS_TYPE: the five
+    # Windows supplementalCredentials KeyTypes get secretsdump's labels (incl. the
+    # "dec-cbc-crc" spelling and rc4_hmac for the 0xFFFFFF74 marker, both present in
+    # Server 2008 DBs), in stored order. A KeyType outside the table is emitted with
+    # its hex form, exactly as secretsdump does.
     w = PwdumpWriter()
     w.open(tmp_path, "user")
     w.write(
@@ -69,18 +74,24 @@ def test_kerberos_lowercase_etypes_without_rc4(tmp_path):
             "credentials": {
                 "ntHash": _NT,
                 "kerberos": [
-                    {"etype": 18, "etypeName": "AES256-CTS-HMAC-SHA1-96", "key": "ab" * 32},
-                    {"etype": 3, "etypeName": "DES-CBC-MD5", "key": "cd" * 8},
-                    {"etype": 23, "etypeName": "RC4-HMAC", "key": _NT},
+                    {"etype": 18, "key": "ab" * 32},
+                    {"etype": 17, "key": "ef" * 16},
+                    {"etype": 3, "key": "cd" * 8},
+                    {"etype": 1, "key": "cd" * 8},
+                    {"etype": 0xFFFFFF74, "key": _NT},
+                    {"etype": 19, "key": "12" * 16},  # not in the table -> hex label
                 ],
             },
         }
     )
     w.close()
-    # RC4 is omitted (it is already the NT hash); etype names are lowercased to match secretsdump.
     assert (tmp_path / "hashes.ntds.kerberos").read_text().splitlines() == [
         f"svc:aes256-cts-hmac-sha1-96:{'ab' * 32}",
+        f"svc:aes128-cts-hmac-sha1-96:{'ef' * 16}",
         f"svc:des-cbc-md5:{'cd' * 8}",
+        f"svc:dec-cbc-crc:{'cd' * 8}",
+        f"svc:rc4_hmac:{_NT}",
+        f"svc:0x13:{'12' * 16}",
     ]
 
 

@@ -19,7 +19,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from ntdswolf.constants import SID_RSPLIT_PART_COUNT
+from ntdswolf.constants import (
+    KERBEROS_ETYPE_AES128_CTS_HMAC_SHA1_96,
+    KERBEROS_ETYPE_AES256_CTS_HMAC_SHA1_96,
+    KERBEROS_ETYPE_DES_CBC_CRC,
+    KERBEROS_ETYPE_DES_CBC_MD5,
+    KERBEROS_KEYTYPE_RC4_MS,
+    SID_RSPLIT_PART_COUNT,
+)
 from ntdswolf.output.credfiles import account_username
 
 if TYPE_CHECKING:
@@ -42,12 +49,18 @@ _HASH_HEX_LEN: int = 32
 
 _WRITE_BUFFER_SIZE: int = 65_536
 
-# etypeName -> secretsdump's lowercase Kerberos-key label. secretsdump emits only
-# these (no RC4 -- that is already the NT hash -- and no SHA-2 etypes).
-_SECRETSDUMP_ETYPES: dict[str, str] = {
-    "AES256-CTS-HMAC-SHA1-96": "aes256-cts-hmac-sha1-96",
-    "AES128-CTS-HMAC-SHA1-96": "aes128-cts-hmac-sha1-96",
-    "DES-CBC-MD5": "des-cbc-md5",
+# Numeric Kerberos KeyType -> secretsdump's label, mirroring impacket's
+# NTDSHashes.KERBEROS_TYPE exactly: the "dec-cbc-crc" spelling, and rc4_hmac for
+# the 0xFFFFFF74 marker Windows stores for the RC4 / NT-hash key. Keyed on the
+# numeric KeyType (not the name) so both selection and labels match byte-for-byte;
+# any KeyType outside this table falls back to its hex form. Server 2008 databases
+# carry all five KeyTypes; 2016+ store only AES256/AES128/DES-CBC-MD5.
+_SECRETSDUMP_ETYPES: dict[int, str] = {
+    KERBEROS_ETYPE_DES_CBC_CRC: "dec-cbc-crc",
+    KERBEROS_ETYPE_DES_CBC_MD5: "des-cbc-md5",
+    KERBEROS_ETYPE_AES128_CTS_HMAC_SHA1_96: "aes128-cts-hmac-sha1-96",
+    KERBEROS_ETYPE_AES256_CTS_HMAC_SHA1_96: "aes256-cts-hmac-sha1-96",
+    KERBEROS_KEYTYPE_RC4_MS: "rc4_hmac",
 }
 
 
@@ -96,7 +109,13 @@ class PwdumpWriter:
             self._ntds_line(f"{username}_history{idx}:{rid}:{_EMPTY_LM_HASH}:{h_nt}:::")
 
     def _write_kerberos(self, credentials: dict[str, object], username: str) -> None:
-        """Write ``username:<etype>:<key>`` lines for the secretsdump-supported etypes."""
+        """Write ``username:<label>:<key>`` lines, mirroring secretsdump's KERBEROS_TYPE.
+
+        Keyed on the numeric Kerberos KeyType (not the etype name), so both the
+        selection and the labels match impacket byte-for-byte: known KeyTypes use
+        secretsdump's label, any other uses its hex form (``0x...``). Every current
+        Kerberos key in supplementalCredentials is emitted, in stored order.
+        """
         keys = credentials.get("kerberos")
         if not isinstance(keys, list):
             return
@@ -104,11 +123,12 @@ class PwdumpWriter:
             if not isinstance(entry, dict):
                 continue
             key_entry = cast("dict[str, object]", entry)
-            etype_name = key_entry.get("etypeName")
-            name = _SECRETSDUMP_ETYPES.get(etype_name) if isinstance(etype_name, str) else None
+            etype = key_entry.get("etype")
             key = key_entry.get("key")
-            if name and isinstance(key, str) and key:
-                self._kerberos_line(f"{username}:{name}:{key}")
+            if not isinstance(etype, int) or not isinstance(key, str) or not key:
+                continue
+            label = _SECRETSDUMP_ETYPES.get(etype, hex(etype))
+            self._kerberos_line(f"{username}:{label}:{key}")
 
     def _write_cleartext(self, credentials: dict[str, object], username: str) -> None:
         """Write the ``username:CLEARTEXT:<password>`` line for reversibly-encrypted passwords."""
