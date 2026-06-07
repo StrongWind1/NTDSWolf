@@ -50,6 +50,13 @@ def _version_callback(*, value: bool | None) -> None:
         raise typer.Exit
 
 
+def _validate_choice(value: str, label: str, choices: tuple[str, ...]) -> None:
+    """Print an error and exit (code 1) if ``value`` is not one of ``choices``."""
+    if value not in choices:
+        _stderr.print(f"[red]Error:[/] Unknown {label} {value!r}. Choose from: {', '.join(choices)}.")
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def extract(
     # --- Positional: path to ntds.dit ---
@@ -143,6 +150,13 @@ def extract(
             help="Naming for the _name field: 'dn' (distinguished name), 'sam' (sAMAccountName), or 'cn' (common name).",
         ),
     ] = "dn",
+    hashcat_username: Annotated[
+        str,
+        typer.Option(
+            "--hashcat-username",
+            help="Username field in hashcat output lines: 'sam' (sAMAccountName), 'upn', 'rid', or 'sid'.",
+        ),
+    ] = "sam",
     raw: Annotated[
         bool,
         typer.Option(
@@ -196,13 +210,9 @@ def extract(
     validated_bootkey = validate_bootkey(bootkey)
     validated_classes = validate_extract_classes(extract_classes)
 
-    if fmt not in SUPPORTED_FORMATS:
-        _stderr.print(f"[red]Error:[/] Unknown format {fmt!r}. Choose from: {', '.join(sorted(SUPPORTED_FORMATS))}")
-        raise typer.Exit(code=1)
-
-    if naming not in ("dn", "sam", "cn"):
-        _stderr.print(f"[red]Error:[/] Unknown naming convention {naming!r}. Choose 'dn', 'sam', or 'cn'.")
-        raise typer.Exit(code=1)
+    _validate_choice(fmt, "format", tuple(sorted(SUPPORTED_FORMATS)))
+    _validate_choice(naming, "naming convention", ("dn", "sam", "cn"))
+    _validate_choice(hashcat_username, "hashcat username field", ("sam", "upn", "rid", "sid"))
 
     # --- Build configuration ---
     config = ExtractionConfig(
@@ -216,6 +226,7 @@ def extract(
         no_history=no_history,
         workers=workers,
         naming=naming,
+        hashcat_username=hashcat_username,
         raw=raw,
         verbose=verbose,
         quiet=quiet,

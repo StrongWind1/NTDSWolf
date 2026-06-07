@@ -194,8 +194,8 @@ def test_gpo_and_domain_decoders_win2016():
     assert "flags" in pwd_props
 
 
-def _run_hashcat(version: str, tmp_path: Path, *, extract_classes: set[str] | None = None, label: str = "out") -> Path:
-    """Run the full pipeline to hashcat output and return the output directory."""
+def _run_format(version: str, tmp_path: Path, fmt: str, *, extract_classes: set[str] | None = None, label: str = "out") -> Path:
+    """Run the full pipeline to a hash output format and return the output directory."""
     base = _FIXTURES / version
     if not (base / "ntds.dit").is_file() or not (base / "SYSTEM").is_file():
         pytest.skip(f"aesedb fixture {version!r} not present")
@@ -205,7 +205,7 @@ def _run_hashcat(version: str, tmp_path: Path, *, extract_classes: set[str] | No
             ntds_path=base / "ntds.dit",
             system_path=base / "SYSTEM",
             output_dir=out_dir,
-            output_format="hashcat",
+            output_format=fmt,
             extract_classes=extract_classes,
             quiet=True,
         )
@@ -213,42 +213,61 @@ def _run_hashcat(version: str, tmp_path: Path, *, extract_classes: set[str] | No
     return out_dir
 
 
-def test_hashcat_kerberos_keys_file_written_win2016(tmp_path):
-    # R-7.1: decoded Kerberos keys reach the hashcat output as principal:etype:key.
-    out_dir = _run_hashcat("win2016_64", tmp_path)
-    kerb_file = out_dir / "kerberos_keys.txt"
+def test_hashcat_emits_no_kerberos_keys_win2016(tmp_path):
+    # The hashcat writer outputs only crackable NT/LM hashes. Kerberos keys are
+    # pass-the-key material, not hashcat-crackable, so they are intentionally
+    # omitted (they live in the pwdump .ntds.kerberos sidecar instead).
+    out_dir = _run_format("win2016_64", tmp_path, "hashcat")
+    names = sorted(p.name for p in out_dir.iterdir())
+    assert names  # something was written
+    assert all("kerberos" not in n and "krb" not in n for n in names)
+    # The NT hashes are present as username:hash lines for `hashcat --username`.
+    nt_users = out_dir / "ntlm_user_current.txt"
+    assert nt_users.is_file()
+    admin = [ln for ln in nt_users.read_text().splitlines() if ln.startswith("Administrator:")]
+    assert admin
+    assert len(admin[0].split(":", 1)[1]) == 32  # full 32-hex NT hash
+
+
+def test_pwdump_kerberos_file_matches_secretsdump_win2016(tmp_path):
+    # R-7.1: decoded Kerberos keys reach the secretsdump-format output as
+    # principal:etype:key, with lowercase etypes and no RC4 (RC4 == the NT hash).
+    out_dir = _run_format("win2016_64", tmp_path, "pwdump")
+    kerb_file = out_dir / "hashes.ntds.kerberos"
     assert kerb_file.is_file()
     lines = kerb_file.read_text().splitlines()
     assert lines
-    aes256 = [ln for ln in lines if ":AES256-CTS-HMAC-SHA1-96:" in ln]
+    allowed = {"aes256-cts-hmac-sha1-96", "aes128-cts-hmac-sha1-96", "des-cbc-md5"}
+    for ln in lines:
+        principal, etype, key = ln.split(":")
+        assert principal  # non-empty principal
+        assert etype in allowed  # lowercase etype label, never RC4
+        assert key  # non-empty key
+    aes256 = [ln for ln in lines if ":aes256-cts-hmac-sha1-96:" in ln]
     assert aes256
-    parts = aes256[0].split(":")
-    assert len(parts) == 3  # principal:etype:key, none of which contain a colon
-    principal, etype, key = parts
-    assert "\\" in principal  # DOMAIN\user
-    assert etype == "AES256-CTS-HMAC-SHA1-96"
-    assert len(key) == 64  # 32-byte AES256 key as hex
+    assert len(aes256[0].split(":")[2]) == 64  # 32-byte AES256 key as hex
 
 
 def test_extract_filter_respected_by_hashcat_format_win2016(tmp_path):
     # R-7.2: --extract must filter credential-bearing classes too. Machine
     # accounts (sAMAccountName ending in "$") must not leak into a users-only
     # run, and vice versa.
-    users_dir = _run_hashcat("win2016_64", tmp_path, extract_classes={"user"}, label="users")
-    computers_dir = _run_hashcat("win2016_64", tmp_path, extract_classes={"computer"}, label="computers")
+    users_dir = _run_format("win2016_64", tmp_path, "hashcat", extract_classes={"user"}, label="users")
+    computers_dir = _run_format("win2016_64", tmp_path, "hashcat", extract_classes={"computer"}, label="computers")
 
-    def _usernames(out_dir: Path) -> list[str]:
-        mapping = out_dir / "hashes_nt.hashcat.users"  # hash:DOMAIN\username per line
-        assert mapping.is_file()
-        return [line.split(":", 1)[1].split("\\")[-1] for line in mapping.read_text().splitlines()]
+    def _usernames(out_dir: Path, filename: str) -> list[str]:
+        f = out_dir / filename  # username:hash per line (sAMAccountName by default)
+        assert f.is_file()
+        return [line.split(":", 1)[0] for line in f.read_text().splitlines()]
 
-    user_names = _usernames(users_dir)
-    computer_names = _usernames(computers_dir)
-    assert user_names
-    assert computer_names
+    user_names = _usernames(users_dir, "ntlm_user_current.txt")
+    computer_names = _usernames(computers_dir, "ntlm_computer_current.txt")
     assert "Administrator" in user_names
     assert all(not n.endswith("$") for n in user_names)  # no machine accounts leaked in
     assert all(n.endswith("$") for n in computer_names)  # only machine accounts
+    # A users-only run must not produce a computer hash file, and vice versa.
+    assert not (users_dir / "ntlm_computer_current.txt").exists()
+    assert not (computers_dir / "ntlm_user_current.txt").exists()
 
 
 def test_parallel_extraction_matches_single_threaded(tmp_path):

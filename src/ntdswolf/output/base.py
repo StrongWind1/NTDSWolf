@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 # Formats that produce per-class output files (users.ndjson, groups.ndjson, etc.)
 _STRUCTURED_FORMATS: frozenset[str] = frozenset({"ndjson", "json", "csv"})
 
-# Formats that produce hash-specific output files (hashes_nt.hashcat, hashes.john, etc.)
-# These writers receive ALL objects but silently skip those without credentials.
-_HASH_FORMATS: frozenset[str] = frozenset({"hashcat", "john", "pwdump"})
+# Formats that produce hash-specific output files (the hashcat and
+# secretsdump-style pwdump writers). These writers receive ALL objects but
+# silently skip those without credentials.
+_HASH_FORMATS: frozenset[str] = frozenset({"hashcat", "pwdump"})
 
 # Every format we support -- used for CLI validation
 SUPPORTED_FORMATS: frozenset[str] = _STRUCTURED_FORMATS | _HASH_FORMATS
@@ -74,13 +75,14 @@ class OutputWriter(Protocol):
     instance based on object class.
     """
 
-    def open(self, output_dir: Path, object_class: str) -> None:
+    def open(self, output_dir: Path, object_class: str, /) -> None:
         """Prepare the writer for output.
 
         Creates or opens the target file(s) in ``output_dir``. The
         ``object_class`` determines the filename for structured formats
         (e.g. ``users.ndjson``). Hash-format writers ignore ``object_class``
-        and use fixed filenames.
+        and use fixed filenames -- hence it is positional-only, so those
+        writers may bind it to an unused ``_object_class`` parameter.
 
         Args:
             output_dir: Directory where output files are written.
@@ -111,7 +113,6 @@ _WRITER_REGISTRY: dict[str, tuple[str, str]] = {
     "json": ("ntdswolf.output.json_", "JSONWriter"),
     "csv": ("ntdswolf.output.csv_", "CSVWriter"),
     "hashcat": ("ntdswolf.output.hashcat", "HashcatWriter"),
-    "john": ("ntdswolf.output.john", "JohnWriter"),
     "pwdump": ("ntdswolf.output.pwdump", "PwdumpWriter"),
 }
 _WRITER_CACHE: dict[str, type[OutputWriter]] = {}
@@ -140,14 +141,16 @@ def _get_writer_class(fmt: str) -> type[OutputWriter]:
     return _WRITER_CACHE[fmt]
 
 
-def _create_writer(fmt: str) -> OutputWriter:
+def _create_writer(fmt: str, hashcat_username: str = "sam") -> OutputWriter:
     """Instantiate the appropriate writer for the given format string.
 
-    Uses the lazily-populated writer registry so that writer modules are
-    only imported when their format is actually requested.
+    Uses the lazily-populated writer registry so that writer modules are only
+    imported when their format is actually requested. ``hashcat_username``
+    selects the hashcat writer's username field and is ignored by other formats.
 
     Args:
         fmt: One of the values in SUPPORTED_FORMATS.
+        hashcat_username: Username source for the hashcat writer (sam/upn/rid/sid).
 
     Returns:
         A fresh, unopened writer instance.
@@ -156,6 +159,10 @@ def _create_writer(fmt: str) -> OutputWriter:
         ValueError: If ``fmt`` is not a recognized format.
 
     """
+    if fmt == "hashcat":
+        from ntdswolf.output.hashcat import HashcatWriter  # noqa: PLC0415 -- writer modules are imported lazily (matching the registry)
+
+        return HashcatWriter(username_field=hashcat_username)
     try:
         cls = _get_writer_class(fmt)
     except KeyError:
@@ -173,12 +180,12 @@ class OutputManager:
     For structured formats (ndjson, json, csv), each AD object class gets its
     own writer and output file (e.g. ``users.ndjson``, ``computers.ndjson``).
 
-    For hash formats (hashcat, john, pwdump), a single writer handles all
-    objects and writes to fixed-name files. Objects without credentials are
-    silently skipped by the writer itself.
+    For hash formats (hashcat, pwdump), a single writer handles all objects and
+    writes to fixed-name files. Objects without credentials are silently skipped
+    by the writer itself.
     """
 
-    def __init__(self, fmt: str, output_dir: Path, extract_classes: set[str] | None = None) -> None:
+    def __init__(self, fmt: str, output_dir: Path, extract_classes: set[str] | None = None, hashcat_username: str = "sam") -> None:
         """Initialize the output manager.
 
         Args:
@@ -188,6 +195,7 @@ class OutputManager:
             extract_classes: If provided, only objects whose ``_object_class``
                              is in this set will be written. ``None`` means
                              write everything.
+            hashcat_username: Username source for the hashcat writer (sam/upn/rid/sid).
 
         Raises:
             ValueError: If ``fmt`` is not recognized.
@@ -200,6 +208,7 @@ class OutputManager:
         self._fmt: str = fmt
         self._output_dir: Path = output_dir
         self._extract_classes: set[str] | None = extract_classes
+        self._hashcat_username: str = hashcat_username
 
         # Per-class writers for structured formats.  Keyed by object class
         # name (e.g. "user", "group").  Lazily populated on first write.
@@ -321,7 +330,7 @@ class OutputManager:
             # First object arriving -- open the hash writer with a dummy class
             # name. Hash writers ignore the class and use fixed filenames.
             self._ensure_output_dir()
-            self._hash_writer = _create_writer(self._fmt)
+            self._hash_writer = _create_writer(self._fmt, self._hashcat_username)
             self._hash_writer.open(self._output_dir, object_class)
 
         self._hash_writer.write(obj_dict)

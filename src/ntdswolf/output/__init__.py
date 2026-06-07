@@ -1,3 +1,3 @@
-"""Output subpackage -- formatters for NDJSON, JSON, CSV, hashcat, john, pwdump."""
+"""Output subpackage -- formatters for NDJSON, JSON, CSV, hashcat, pwdump."""
 
 from __future__ import annotations

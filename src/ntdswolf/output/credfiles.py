@@ -1,10 +1,15 @@
 r"""Shared helpers for the credential-file output writers (hashcat, pwdump).
 
-Account identity (username / domain / ``DOMAIN\user`` principal) and Kerberos-key
-formatting are needed identically by more than one hash-dump writer. Centralizing
-them here keeps the ``kerberos_keys.txt`` content and the principal format
-byte-identical across formats and removes the per-writer duplication that existed
-when each format re-implemented its own ``_extract_username``.
+``account_username`` resolves an object's logon name identically for both hash
+writers, removing the per-writer ``_extract_username`` duplication that existed
+when each format implemented its own.
+
+The Kerberos-key and trust-key line formatters (``kerberos_key_lines``,
+``trust_credential_lines`` and their ``account_domain`` / ``credential_principal``
+helpers) produce ``principal:etype:key`` records. They are not wired to a writer in
+the current output set -- the hashcat format no longer emits Kerberos keys, and
+pwdump follows secretsdump's per-account ``.ntds.kerberos`` layout -- but are kept
+here as the canonical formatting for that data.
 """
 
 from __future__ import annotations

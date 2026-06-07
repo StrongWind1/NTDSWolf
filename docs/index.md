@@ -12,7 +12,7 @@ NTDSWolf parses Windows Active Directory NTDS.dit database files and extracts pa
 
 - **Pure Python** — runs on Linux, macOS, and Windows with no .NET dependency.
 - **Parses modern NTDS.dit** — handles Windows Server 2008 through 2025, including the AES PEK era.
-- **Structured output** — emits NDJSON, JSON, and CSV alongside the classic hashcat, John, and pwdump cracking formats.
+- **Structured output** — emits NDJSON, JSON, and CSV alongside hashcat and secretsdump-compatible pwdump cracking formats.
 - **Typed and tested** — full type hints, strict linting, and a test suite covering the decryption and output paths.
 
 ## Quick start
@@ -28,7 +28,7 @@ ntdswolf ntds.dit
 ntdswolf ntds.dit --system SYSTEM --format hashcat -o ./loot/
 
 # Crack the NT hashes
-hashcat -m 1000 ./loot/hashes_nt.hashcat wordlist.txt
+hashcat -m 1000 --username ./loot/ntlm_user_current.txt wordlist.txt
 ```
 
 See the [installation guide](getting-started/installation.md) for setup details, or jump straight to the [guide](guide/index.md).

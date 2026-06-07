@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `--hashcat-username` selects the username field in hashcat output lines: `sam` (sAMAccountName, the default), `upn`, `rid`, or `sid`.
+
+### Changed
+
+- Reworked the hashcat output into per-class `username:hash` files for `hashcat --username` (`ntlm_<type>_current.txt`, `ntlm_<type>_history.txt`, `lm_<type>_current.txt`, `lm_<type>_history.txt`), split by object class, hash type, and age. LM hashes are emitted as their two 8-byte halves (mode 3000). Kerberos keys are no longer written to the hashcat output -- they are pass-the-key material, not hashcat-crackable hashes.
+- The pwdump format now emits secretsdump's "newer pwdump" file set, byte-for-byte compatible with `impacket-secretsdump -outputfile`: `hashes.ntds` (`username:rid:lm:nt:::` with inline `username_historyN` lines), `hashes.ntds.kerberos` (`username:<etype>:<key>`, lowercase etypes, no RC4), and `hashes.ntds.cleartext` (`username:CLEARTEXT:<password>`).
+
+### Removed
+
+- The John the Ripper output format (`--format john`); use `hashcat` or `pwdump`.
+
 ### Fixed
 
 - Removed the redundant `--exclude-deleted` flag; `--include-deleted` is now a single switch (deleted objects are excluded by default).

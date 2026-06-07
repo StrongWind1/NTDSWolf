@@ -1,12 +1,31 @@
-"""Hashcat-compatible hash output writer -- NT/LM hashes split for mode 1000/3000."""
+r"""Hashcat-compatible hash output writer.
+
+For every object class that carries NT/LM hashes, this writes ``username:hash``
+lines split by hash type, age, and class -- ready for ``hashcat --username``::
+
+    ntlm_<type>_current.txt   username:nt_hash       (hashcat -m 1000)
+    ntlm_<type>_history.txt   username:nt_hash        historical NT
+    lm_<type>_current.txt     username:lm_half        (hashcat -m 3000)
+    lm_<type>_history.txt     username:lm_half          historical LM
+
+``<type>`` is the object class (``user``, ``computer``, ``gmsa``, ...). The LM
+hash is emitted as its two independent 8-byte (16-hex) halves, one per line,
+because mode 3000 cracks each half separately. ``username`` is the
+sAMAccountName by default and can be switched to the UPN, the RID, or the full
+objectSid via ``--hashcat-username``.
+
+Files are ASCII with ``\n`` line endings. Kerberos keys are intentionally not
+emitted: they are pass-the-key material, not hashcat-crackable hashes.
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+import re
+from typing import TYPE_CHECKING, Any, cast
 
 from ntdswolf.constants import MD4_HEX_LENGTH
-from ntdswolf.output.credfiles import account_domain, account_username, credential_principal, kerberos_key_lines, trust_credential_lines
+from ntdswolf.output.credfiles import account_username
 
 if TYPE_CHECKING:
     import io
@@ -14,254 +33,109 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Well-known empty hash values. These represent accounts with no password
-# set and are generally excluded from cracking runs, but we still write
-# them to the output for completeness. The user can grep them out.
-_EMPTY_LM_HASH: str = "aad3b435b51404eeaad3b435b51404ee"
-_EMPTY_NT_HASH: str = "31d6cfe0d16ae931b73c59d7e0c089c0"
+# Valid sources for the ``username`` field of each ``username:hash`` line.
+USERNAME_FIELDS: frozenset[str] = frozenset({"sam", "upn", "rid", "sid"})
 
-# LM hashes are 16 bytes (32 hex chars). Each half is an independent
-# DES-encrypted block that hashcat cracks separately as mode 3000.
-_LM_HALF_LEN: int = 16  # 16 hex chars = 8 bytes per half
+# hashcat mode 3000 cracks each 8-byte (16-hex) LM half separately, so a stored
+# 16-byte LM hash is emitted as two lines.
+_LM_HALF_LEN: int = 16
 
-# Write buffer size for output files (64KB).
-_WRITE_BUFFER_SIZE: int = 65_536
+# Short, filesystem-friendly names for the ``<type>`` filename segment.
+_TYPE_NAMES: dict[str, str] = {
+    "user": "user",
+    "computer": "computer",
+    "msDS-GroupManagedServiceAccount": "gmsa",
+    "msDS-ManagedServiceAccount": "smsa",
+    "msDS-DelegatedManagedServiceAccount": "dmsa",
+}
+_UNSAFE_FILENAME_CHARS: re.Pattern[str] = re.compile(r"[^a-z0-9._-]+")
+
+# Hash files are written as ASCII; the rare non-ASCII username byte is replaced
+# rather than crashing extraction.
+_ENCODING: str = "ascii"
 
 
 class HashcatWriter:
-    r"""Hashcat-compatible hash output writer.
+    r"""Writes ``username:hash`` files grouped by class / hash type / age."""
 
-    Produces hash files suitable for direct use with ``hashcat``:
-
-    - ``hashes_nt.hashcat`` -- one bare NT hash per line (mode 1000).
-    - ``hashes_lm.hashcat`` -- LM hash halves, one per line (mode 3000).
-    - ``hashes_nt.hashcat.users`` -- mapping file with ``hash:DOMAIN\\username``
-      entries for correlating cracked results back to accounts.
-    - ``hashes_nt_history.hashcat`` -- historical NT hashes (optional, only
-      written if any objects contain NT hash history).
-    - ``hashes_lm_history.hashcat`` -- historical LM hash halves (optional).
-    - ``kerberos_keys.txt`` -- ``principal:etype:key`` lines for pass-the-key
-      (optional, only written if any objects carry decoded Kerberos keys).
-
-    Objects without credentials are silently skipped. This writer receives
-    all object types from the OutputManager but only processes those with
-    a ``credentials`` dict containing hash data.
-
-    Usage with hashcat::
-
-        hashcat -m 1000 hashes_nt.hashcat wordlist.txt
-        hashcat -m 3000 hashes_lm.hashcat wordlist.txt
-    """
-
-    def __init__(self) -> None:
-        """Initialize the writer in a closed state."""
-        # File handles for each output file. Opened lazily on first relevant write.
-        self._nt_file: io.TextIOWrapper | None = None
-        self._lm_file: io.TextIOWrapper | None = None
-        self._nt_users_file: io.TextIOWrapper | None = None
-        self._nt_history_file: io.TextIOWrapper | None = None
-        self._lm_history_file: io.TextIOWrapper | None = None
-        self._kerberos_file: io.TextIOWrapper | None = None
+    def __init__(self, username_field: str = "sam") -> None:
+        """Initialize the writer; ``username_field`` selects the line's username source."""
+        self._username_field: str = username_field if username_field in USERNAME_FIELDS else "sam"
         self._output_dir: Path | None = None
+        # Open file handles keyed by filename (lazily created on first matching write).
+        self._files: dict[str, io.TextIOWrapper] = {}
 
     def open(self, output_dir: Path, _object_class: str) -> None:
-        """Store the output directory for lazy file creation.
-
-        Files are not actually opened here -- they are created on demand
-        when the first relevant hash data arrives. This avoids creating
-        empty files when no credentialed objects exist.
-
-        Args:
-            output_dir: Directory where hash files will be written.
-            _object_class: Ignored. Hashcat writer uses fixed filenames.
-
-        """
+        """Store the output directory; files are created lazily per (type, hash, age)."""
         self._output_dir = output_dir
-        logger.debug("Hashcat writer ready, output dir: %s", output_dir)
+        logger.debug("Hashcat writer ready (username=%s), output dir: %s", self._username_field, output_dir)
 
     def write(self, obj_dict: dict[str, Any]) -> None:
-        """Extract hashes from an object and write them in hashcat format.
-
-        Silently returns if the object has no ``credentials`` key or if
-        the credentials contain no hash data.
-
-        Args:
-            obj_dict: Serialized AD object dict from a decoder.
-
-        """
-        # Trust objects carry keys under trustCredentials (not credentials), so
-        # emit those before the credentials early-return below.
-        self._write_kerberos_lines(trust_credential_lines(obj_dict))
-
+        """Emit this object's NT/LM hashes (current + history) as ``username:hash`` lines."""
         credentials = obj_dict.get("credentials")
         if not isinstance(credentials, dict):
-            # No credentials on this object -- skip silently.
             return
 
-        # Build the username string for the mapping file.
-        # Prefer sAMAccountName, fall back to the DN-derived name.
-        username = account_username(obj_dict)
-        domain = account_domain(obj_dict)
+        username = self._resolve_username(obj_dict)
+        type_name = self._type_name(obj_dict.get("_object_class"))
 
-        self._write_nt_hash(credentials, username, domain)
-        self._write_lm_hash(credentials)
-        self._write_nt_history(credentials)
-        self._write_lm_history(credentials)
-        self._write_kerberos(credentials, username, domain)
+        self._write_nt(credentials.get("ntHash"), username, f"ntlm_{type_name}_current.txt")
+        for hist in _hash_list(credentials.get("ntHistory")):
+            self._write_nt(hist, username, f"ntlm_{type_name}_history.txt")
 
-    def _write_kerberos(self, credentials: dict[str, object], username: str, domain: str) -> None:
-        """Write Kerberos keys as ``principal:etype:key`` for pass-the-key use."""
-        self._write_kerberos_lines(kerberos_key_lines(credentials, credential_principal(domain, username)))
+        self._write_lm(credentials.get("lmHash"), username, f"lm_{type_name}_current.txt")
+        for hist in _hash_list(credentials.get("lmHistory")):
+            self._write_lm(hist, username, f"lm_{type_name}_history.txt")
 
-    def _write_kerberos_lines(self, lines: list[str]) -> None:
-        """Append already-formatted ``principal:etype:key`` lines to kerberos_keys.txt."""
-        if not lines:
-            return
-        self._ensure_kerberos_file()
-        if self._kerberos_file is None:
-            msg = "Kerberos keys file not opened: _ensure_kerberos_file() failed"
-            raise RuntimeError(msg)
-        self._kerberos_file.write("\n".join(lines) + "\n")
+    def _write_nt(self, value: object, username: str, filename: str) -> None:
+        """Write one ``username:nt_hash`` line (mode 1000) if the hash is valid."""
+        if isinstance(value, str) and len(value) == MD4_HEX_LENGTH:
+            self._line(filename, f"{username}:{value}")
 
-    def _write_nt_hash(self, credentials: dict[str, object], username: str, domain: str) -> None:
-        """Write the current NT hash and user mapping entry."""
-        nt_hash = credentials.get("ntHash")
-        if not isinstance(nt_hash, str) or len(nt_hash) != MD4_HEX_LENGTH:
-            return
+    def _write_lm(self, value: object, username: str, filename: str) -> None:
+        """Write the two ``username:lm_half`` lines (mode 3000) if the hash is valid."""
+        if isinstance(value, str) and len(value) == MD4_HEX_LENGTH:
+            self._line(filename, f"{username}:{value[:_LM_HALF_LEN]}")
+            self._line(filename, f"{username}:{value[_LM_HALF_LEN:]}")
 
-        self._ensure_nt_files()
-        if self._nt_file is None or self._nt_users_file is None:
-            msg = "NT hash files not opened: _ensure_nt_files() failed"
-            raise RuntimeError(msg)
+    def _line(self, filename: str, text: str) -> None:
+        """Append a line to ``filename``, opening it on first use."""
+        fh = self._files.get(filename)
+        if fh is None:
+            if self._output_dir is None:
+                msg = "Writer not opened: call open() before write()"
+                raise RuntimeError(msg)
+            fh = (self._output_dir / filename).open(mode="w", encoding=_ENCODING, errors="replace", newline="\n")
+            self._files[filename] = fh
+        fh.write(text + "\n")
 
-        # One bare hash per line for hashcat mode 1000.
-        self._nt_file.write(nt_hash)
-        self._nt_file.write("\n")
+    def _resolve_username(self, obj_dict: dict[str, Any]) -> str:
+        """Return the line's username per ``--hashcat-username`` (falling back to sAMAccountName)."""
+        if self._username_field == "upn":
+            upn = obj_dict.get("userPrincipalName")
+            return upn if isinstance(upn, str) and upn else account_username(obj_dict)
+        if self._username_field in {"rid", "sid"}:
+            sid = obj_dict.get("objectSid")
+            if isinstance(sid, str) and sid:
+                return sid.rsplit("-", 1)[-1] if self._username_field == "rid" else sid
+            return account_username(obj_dict)
+        return account_username(obj_dict)
 
-        # Mapping file: hash:DOMAIN\username for result correlation.
-        domain_user = f"{domain}\\{username}" if domain else username
-        self._nt_users_file.write(f"{nt_hash}:{domain_user}\n")
-
-    def _write_lm_hash(self, credentials: dict[str, object]) -> None:
-        """Write the current LM hash as two halves for mode 3000."""
-        lm_hash = credentials.get("lmHash")
-        if not isinstance(lm_hash, str) or len(lm_hash) != MD4_HEX_LENGTH:
-            return
-
-        self._ensure_lm_file()
-        if self._lm_file is None:
-            msg = "LM hash file not opened: _ensure_lm_file() failed"
-            raise RuntimeError(msg)
-
-        # Split LM hash into two independent 8-byte halves for mode 3000.
-        # Each half is a separate DES encryption that hashcat cracks independently.
-        lm_first_half = lm_hash[:_LM_HALF_LEN]
-        lm_second_half = lm_hash[_LM_HALF_LEN:]
-        self._lm_file.write(lm_first_half)
-        self._lm_file.write("\n")
-        self._lm_file.write(lm_second_half)
-        self._lm_file.write("\n")
-
-    def _write_nt_history(self, credentials: dict[str, object]) -> None:
-        """Write NT hash history entries."""
-        nt_history = credentials.get("ntHistory")
-        if not isinstance(nt_history, list):
-            return
-
-        for hist_hash in nt_history:
-            if isinstance(hist_hash, str) and len(hist_hash) == MD4_HEX_LENGTH:
-                self._ensure_nt_history_file()
-                if self._nt_history_file is None:
-                    msg = "NT history file not opened: _ensure_nt_history_file() failed"
-                    raise RuntimeError(msg)
-                self._nt_history_file.write(hist_hash)
-                self._nt_history_file.write("\n")
-
-    def _write_lm_history(self, credentials: dict[str, object]) -> None:
-        """Write LM hash history entries as halves."""
-        lm_history = credentials.get("lmHistory")
-        if not isinstance(lm_history, list):
-            return
-
-        for hist_hash in lm_history:
-            if isinstance(hist_hash, str) and len(hist_hash) == MD4_HEX_LENGTH:
-                self._ensure_lm_history_file()
-                if self._lm_history_file is None:
-                    msg = "LM history file not opened: _ensure_lm_history_file() failed"
-                    raise RuntimeError(msg)
-                # Split each historical LM hash into halves, same as current.
-                lm_first_half = hist_hash[:_LM_HALF_LEN]
-                lm_second_half = hist_hash[_LM_HALF_LEN:]
-                self._lm_history_file.write(lm_first_half)
-                self._lm_history_file.write("\n")
-                self._lm_history_file.write(lm_second_half)
-                self._lm_history_file.write("\n")
+    @staticmethod
+    def _type_name(object_class: object) -> str:
+        """Map an objectClass to its short filename segment (``user``, ``gmsa``, ...)."""
+        if not isinstance(object_class, str) or not object_class:
+            return "object"
+        return _TYPE_NAMES.get(object_class) or _UNSAFE_FILENAME_CHARS.sub("_", object_class.lower()).strip("_") or "object"
 
     def close(self) -> None:
-        """Close all open hash output files.
+        """Close every open hash file (idempotent)."""
+        for filename, fh in self._files.items():
+            fh.close()
+            logger.debug("Closed hashcat output: %s", filename)
+        self._files = {}
 
-        Safe to call multiple times -- subsequent calls are no-ops.
-        """
-        for name, fh in [
-            ("hashes_nt.hashcat", self._nt_file),
-            ("hashes_lm.hashcat", self._lm_file),
-            ("hashes_nt.hashcat.users", self._nt_users_file),
-            ("hashes_nt_history.hashcat", self._nt_history_file),
-            ("hashes_lm_history.hashcat", self._lm_history_file),
-            ("kerberos_keys.txt", self._kerberos_file),
-        ]:
-            if fh is not None:
-                fh.close()
-                logger.debug("Closed hashcat output: %s", name)
 
-        # Reset all handles so close() is idempotent.
-        self._nt_file = None
-        self._lm_file = None
-        self._nt_users_file = None
-        self._nt_history_file = None
-        self._lm_history_file = None
-        self._kerberos_file = None
-
-    # --- Lazy file creation helpers ---
-
-    def _open_file(self, filename: str) -> io.TextIOWrapper:
-        """Open a hash output file with buffered writing.
-
-        Args:
-            filename: Name of the file to create in the output directory.
-
-        Returns:
-            An open text file handle ready for writing.
-
-        """
-        if self._output_dir is None:
-            msg = "Writer not opened: call open() before write()"
-            raise RuntimeError(msg)
-        path = self._output_dir / filename
-        return path.open(mode="w", encoding="utf-8", buffering=_WRITE_BUFFER_SIZE)
-
-    def _ensure_nt_files(self) -> None:
-        """Open the NT hash file and user mapping file if not already open."""
-        if self._nt_file is None:
-            self._nt_file = self._open_file("hashes_nt.hashcat")
-            self._nt_users_file = self._open_file("hashes_nt.hashcat.users")
-
-    def _ensure_lm_file(self) -> None:
-        """Open the LM hash file if not already open."""
-        if self._lm_file is None:
-            self._lm_file = self._open_file("hashes_lm.hashcat")
-
-    def _ensure_nt_history_file(self) -> None:
-        """Open the NT history hash file if not already open."""
-        if self._nt_history_file is None:
-            self._nt_history_file = self._open_file("hashes_nt_history.hashcat")
-
-    def _ensure_lm_history_file(self) -> None:
-        """Open the LM history hash file if not already open."""
-        if self._lm_history_file is None:
-            self._lm_history_file = self._open_file("hashes_lm_history.hashcat")
-
-    def _ensure_kerberos_file(self) -> None:
-        """Open the Kerberos keys file if not already open."""
-        if self._kerberos_file is None:
-            self._kerberos_file = self._open_file("kerberos_keys.txt")
+def _hash_list(value: object) -> list[object]:
+    """Return ``value`` if it is a list of history hashes, else an empty list."""
+    return cast("list[object]", value) if isinstance(value, list) else []

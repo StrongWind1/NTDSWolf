@@ -17,12 +17,13 @@ ntdswolf <ntds.dit> [OPTIONS]
 | `--system PATH` | Path to the SYSTEM registry hive for boot key extraction |
 | `--bootkey HEX` | Raw 32-character hex boot key (overrides `--system`) |
 | `-o`, `--output PATH` | Output directory (default: `ntdswolf-output/`) |
-| `-f`, `--format FORMAT` | Output format: `ndjson`, `json`, `csv`, `hashcat`, `john`, `pwdump` (default: `ndjson`) |
+| `-f`, `--format FORMAT` | Output format: `ndjson`, `json`, `csv`, `hashcat`, `pwdump` (default: `ndjson`) |
 | `-e`, `--extract CLASSES` | Comma-separated object classes to extract: `users`, `computers`, `groups`, `trusts`, `domains`, `all` (default: `all`) |
 | `-w`, `--workers N` | Number of parallel workers (default: 1) |
 | `--no-history` | Exclude password history hashes |
 | `--include-deleted` | Include deleted (tombstoned) objects (excluded by default) |
 | `--naming MODE` | Object naming: `dn`, `sam`, `cn` (default: `dn`) |
+| `--hashcat-username FIELD` | Username field in hashcat output lines: `sam` (sAMAccountName), `upn`, `rid`, or `sid` (default: `sam`) |
 | `--raw` | Include raw/unmapped attributes in output |
 | `-v`, `--verbose` | Verbose logging to stderr |
 | `-q`, `--quiet` | Suppress all non-error output |

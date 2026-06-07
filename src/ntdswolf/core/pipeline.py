@@ -72,7 +72,7 @@ class ExtractionConfig:
 
     # --- Output ---
     output_dir: Path = field(default_factory=lambda: Path("ntdswolf-output"))  # Output directory
-    output_format: str = "ndjson"  # Output format (ndjson, json, csv, hashcat, john, pwdump)
+    output_format: str = "ndjson"  # Output format (ndjson, json, csv, hashcat, pwdump)
 
     # --- Extraction scope ---
     extract_classes: set[str] | None = None  # Which object classes to extract (None = all)
@@ -84,6 +84,7 @@ class ExtractionConfig:
 
     # --- Output style ---
     naming: str = "dn"  # DN format for object naming ("dn" or "sam")
+    hashcat_username: str = "sam"  # Username field for hashcat output (sam/upn/rid/sid)
     raw: bool = False  # Include all raw attributes in output
 
     # --- Logging ---
@@ -276,6 +277,7 @@ class PipelineOrchestrator:
             fmt=config.output_format,
             output_dir=config.output_dir,
             extract_classes=config.extract_classes,
+            hashcat_username=config.hashcat_username,
         )
 
         # We iterate via the datatable's linear scan for maximum speed.

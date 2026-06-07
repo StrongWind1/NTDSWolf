@@ -1,93 +1,87 @@
-"""Unit tests for output/pwdump.py -- pwdump line formatting and helpers."""
+"""Unit tests for output/pwdump.py -- secretsdump-format .ntds / .ntds.kerberos / .ntds.cleartext."""
 
 from __future__ import annotations
 
-from ntdswolf.output.pwdump import (
-    PwdumpWriter,
-    _extract_rid,
-    _validate_hash,
-)
+from ntdswolf.output.pwdump import PwdumpWriter, _extract_rid, _secretsdump_username, _validate_hash
 
 _NT = "7facdc498ed1680c4fd1448319a8c04f"
 _EMPTY_LM = "aad3b435b51404eeaad3b435b51404ee"
 
 
-def test_extract_rid_from_sid():
+def test_extract_rid():
     assert _extract_rid({"objectSid": "S-1-5-21-1-2-3-500"}) == 500
-
-
-def test_extract_rid_missing_sid_defaults_zero():
     assert _extract_rid({}) == 0
-
-
-def test_extract_rid_non_numeric_tail_defaults_zero():
     assert _extract_rid({"objectSid": "S-1-5-21-1-2-3-abc"}) == 0
 
 
-def test_validate_hash_accepts_32_hex():
+def test_validate_hash():
     assert _validate_hash(_NT) == _NT
-
-
-def test_validate_hash_rejects_wrong_length():
     assert _validate_hash("abc") is None
-
-
-def test_validate_hash_rejects_non_str():
     assert _validate_hash(None) is None
 
 
-def test_pwdump_admin_line(tmp_path):
-    writer = PwdumpWriter()
-    writer.open(tmp_path, "user")
-    writer.write(
-        {
-            "_object_class": "user",
-            "sAMAccountName": "Administrator",
-            "objectSid": "S-1-5-21-1-2-3-500",
-            "credentials": {"ntHash": _NT},
-        }
-    )
-    writer.close()
-    assert (tmp_path / "hashes.pwdump").read_text() == f"Administrator:500:{_EMPTY_LM}:{_NT}:::\n"
+def test_secretsdump_username_prefixes_upn_domain_only():
+    # secretsdump prefixes <UPN-domain>\ only when a userPrincipalName is present.
+    assert _secretsdump_username({"sAMAccountName": "Administrator"}) == "Administrator"
+    assert _secretsdump_username({"sAMAccountName": "test2", "userPrincipalName": "test2@TEST.corp"}) == "TEST.corp\\test2"
 
 
-def test_pwdump_skips_object_without_credentials(tmp_path):
-    writer = PwdumpWriter()
-    writer.open(tmp_path, "user")
-    writer.write({"_object_class": "user", "sAMAccountName": "x", "objectSid": "S-1-5-21-1-2-3-1"})
-    writer.close()
-    assert not (tmp_path / "hashes.pwdump").exists()
+def test_ntds_line(tmp_path):
+    w = PwdumpWriter()
+    w.open(tmp_path, "user")
+    w.write({"_object_class": "user", "sAMAccountName": "Administrator", "objectSid": "S-1-5-21-1-2-3-500", "credentials": {"ntHash": _NT}})
+    w.close()
+    assert (tmp_path / "hashes.ntds").read_text() == f"Administrator:500:{_EMPTY_LM}:{_NT}:::\n"
 
 
-def test_pwdump_history_goes_to_separate_file(tmp_path):
-    writer = PwdumpWriter()
-    writer.open(tmp_path, "user")
-    writer.write(
-        {
-            "_object_class": "user",
-            "sAMAccountName": "u",
-            "objectSid": "S-1-5-21-1-2-3-1105",
-            "credentials": {"ntHash": _NT, "ntHistory": [_NT, _NT]},
-        }
-    )
-    writer.close()
-    hist = (tmp_path / "hashes_history.pwdump").read_text().splitlines()
-    assert hist[0].startswith("u__history0:1105:")
-    assert hist[1].startswith("u__history1:1105:")
+def test_history_is_inline_with_single_underscore(tmp_path):
+    w = PwdumpWriter()
+    w.open(tmp_path, "user")
+    w.write({"_object_class": "user", "sAMAccountName": "u", "objectSid": "S-1-5-21-1-2-3-1105", "credentials": {"ntHash": _NT, "ntHistory": [_NT, _NT]}})
+    w.close()
+    lines = (tmp_path / "hashes.ntds").read_text().splitlines()
+    assert lines[0] == f"u:1105:{_EMPTY_LM}:{_NT}:::"
+    assert lines[1] == f"u_history0:1105:{_EMPTY_LM}:{_NT}:::"
+    assert lines[2] == f"u_history1:1105:{_EMPTY_LM}:{_NT}:::"
 
 
-def test_pwdump_kerberos_keys_file(tmp_path):
-    # Kerberos keys belong in the pwdump output too, not just hashcat.
-    writer = PwdumpWriter()
-    writer.open(tmp_path, "user")
-    writer.write(
+def test_kerberos_lowercase_etypes_without_rc4(tmp_path):
+    w = PwdumpWriter()
+    w.open(tmp_path, "user")
+    w.write(
         {
             "_object_class": "user",
             "sAMAccountName": "svc",
-            "distinguishedName": "CN=svc,DC=corp,DC=local",
-            "objectSid": "S-1-5-21-1-2-3-1200",
-            "credentials": {"kerberos": [{"etype": 18, "etypeName": "AES256-CTS-HMAC-SHA1-96", "key": "ab" * 32}]},
+            "objectSid": "S-1-5-21-1-2-3-1106",
+            "credentials": {
+                "ntHash": _NT,
+                "kerberos": [
+                    {"etype": 18, "etypeName": "AES256-CTS-HMAC-SHA1-96", "key": "ab" * 32},
+                    {"etype": 3, "etypeName": "DES-CBC-MD5", "key": "cd" * 8},
+                    {"etype": 23, "etypeName": "RC4-HMAC", "key": _NT},
+                ],
+            },
         }
     )
-    writer.close()
-    assert (tmp_path / "kerberos_keys.txt").read_text() == f"CORP\\svc:AES256-CTS-HMAC-SHA1-96:{'ab' * 32}\n"
+    w.close()
+    # RC4 is omitted (it is already the NT hash); etype names are lowercased to match secretsdump.
+    assert (tmp_path / "hashes.ntds.kerberos").read_text().splitlines() == [
+        f"svc:aes256-cts-hmac-sha1-96:{'ab' * 32}",
+        f"svc:des-cbc-md5:{'cd' * 8}",
+    ]
+
+
+def test_cleartext_file(tmp_path):
+    w = PwdumpWriter()
+    w.open(tmp_path, "user")
+    w.write({"_object_class": "user", "sAMAccountName": "u", "objectSid": "S-1-5-21-1-2-3-1107", "credentials": {"ntHash": _NT, "cleartextPassword": "P@ssw0rd!"}})
+    w.close()
+    assert (tmp_path / "hashes.ntds.cleartext").read_text() == "u:CLEARTEXT:P@ssw0rd!\n"
+
+
+def test_skips_object_without_credentials(tmp_path):
+    w = PwdumpWriter()
+    w.open(tmp_path, "user")
+    w.write({"_object_class": "user", "sAMAccountName": "u"})
+    w.close()
+    assert not (tmp_path / "hashes.ntds").exists()

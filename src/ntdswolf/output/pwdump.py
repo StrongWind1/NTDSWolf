@@ -1,12 +1,26 @@
-"""Classic pwdump format hash output writer -- username:rid:lm:nt::: lines."""
+r"""secretsdump-compatible "newer pwdump" output writer.
+
+Produces files byte-compatible with ``impacket-secretsdump -outputfile``:
+
+    hashes.ntds            username:rid:lm:nt:::   (+ inline username_historyN lines)
+    hashes.ntds.kerberos   username:<etype>:<key>  (lowercase etypes, no RC4)
+    hashes.ntds.cleartext  username:CLEARTEXT:<password>
+
+This is the modern "pwdump" format secretsdump emits. It supersedes the classic
+``username:rid:lm:nt:::`` pwdump by adding the Kerberos-key and cleartext sidecar
+files; the ``.ntds`` line itself is the same format NTDSWolf already produces
+byte-identically to secretsdump on single-domain databases.
+
+Objects without credentials are silently skipped.
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ntdswolf.constants import SID_RSPLIT_PART_COUNT
-from ntdswolf.output.credfiles import account_domain, account_username, credential_principal, kerberos_key_lines, trust_credential_lines
+from ntdswolf.output.credfiles import account_username
 
 if TYPE_CHECKING:
     import io
@@ -14,218 +28,124 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# The classic pwdump format has been around since the original L0phtCrack days:
-#   username:rid:lm_hash:nt_hash:::
-# The trailing three colons represent empty fields (comment, homedir, etc.)
-# that were part of the original Unix passwd format adaptation.
-
-# Empty LM hash value -- used when no LM hash is available for an account.
-# This is the LM hash of an empty password and signals "no LM hash stored".
+# LM/NT hash of an empty password -- secretsdump substitutes these when an
+# account has no stored LM/NT hash.
 _EMPTY_LM_HASH: str = "aad3b435b51404eeaad3b435b51404ee"
-
-# Empty NT hash value -- used when no NT hash is available.
 _EMPTY_NT_HASH: str = "31d6cfe0d16ae931b73c59d7e0c089c0"
 
-# Default RID when the objectSid cannot be parsed. This should not happen
-# in a well-formed NTDS.dit, but we handle it defensively.
+# Default RID when the objectSid cannot be parsed (should not happen in a
+# well-formed NTDS.dit).
 _DEFAULT_RID: int = 0
 
-# Write buffer size for output files (64KB).
+# Length of a valid hex-encoded 16-byte NT/LM hash.
+_HASH_HEX_LEN: int = 32
+
 _WRITE_BUFFER_SIZE: int = 65_536
+
+# etypeName -> secretsdump's lowercase Kerberos-key label. secretsdump emits only
+# these (no RC4 -- that is already the NT hash -- and no SHA-2 etypes).
+_SECRETSDUMP_ETYPES: dict[str, str] = {
+    "AES256-CTS-HMAC-SHA1-96": "aes256-cts-hmac-sha1-96",
+    "AES128-CTS-HMAC-SHA1-96": "aes128-cts-hmac-sha1-96",
+    "DES-CBC-MD5": "des-cbc-md5",
+}
 
 
 class PwdumpWriter:
-    """Classic pwdump format hash output writer.
-
-    Produces hash files in the traditional pwdump format used by tools
-    like L0phtCrack, ophcrack, and many others::
-
-        jsmith:1104:aad3b435b51404eeaad3b435b51404ee:e52cac67419a9a224a3b108f3fa6cb6d:::
-        Administrator:500:aad3b435b51404eeaad3b435b51404ee:fc525c9683e8fe067095ba2ddc971889:::
-
-    Format breakdown: ``username:rid:lm_hash:nt_hash:::``
-
-    Output files:
-
-    - ``hashes.pwdump`` -- current hashes for all credentialed objects.
-    - ``hashes_history.pwdump`` -- historical hashes (only created if any
-      objects contain hash history entries).
-    - ``kerberos_keys.txt`` -- ``principal:etype:key`` Kerberos keys for
-      pass-the-key (only created if any object carries decoded keys).
-
-    History entries use the format ``username__historyN:rid:lm:nt:::``
-    where N is the zero-based history index.
-
-    Objects without credentials are silently skipped.
-    """
+    r"""secretsdump-format writer: ``.ntds`` + ``.ntds.kerberos`` + ``.ntds.cleartext``."""
 
     def __init__(self) -> None:
-        """Initialize the writer in a closed state."""
-        self._file: io.TextIOWrapper | None = None
-        self._history_file: io.TextIOWrapper | None = None
-        self._kerberos_file: io.TextIOWrapper | None = None
+        """Initialize the writer in a closed state; files open lazily on first matching write."""
+        self._ntds: io.TextIOWrapper | None = None
+        self._kerberos: io.TextIOWrapper | None = None
+        self._cleartext: io.TextIOWrapper | None = None
         self._output_dir: Path | None = None
 
     def open(self, output_dir: Path, _object_class: str) -> None:
-        """Store the output directory for lazy file creation.
-
-        Files are created on demand when the first relevant hash data
-        arrives, avoiding empty output files.
-
-        Args:
-            output_dir: Directory where hash files will be written.
-            _object_class: Ignored. Pwdump writer uses fixed filenames.
-
-        """
+        """Store the output directory; the three secretsdump files are created on demand."""
         self._output_dir = output_dir
-        logger.debug("Pwdump writer ready, output dir: %s", output_dir)
+        logger.debug("Pwdump (secretsdump) writer ready, output dir: %s", output_dir)
 
     def write(self, obj_dict: dict[str, Any]) -> None:
-        """Extract hashes from an object and write in pwdump format.
-
-        Each line follows ``username:rid:lm_hash:nt_hash:::``. If either
-        hash is missing, the well-known empty hash value is substituted.
-
-        The RID is extracted from the ``objectSid`` field by taking the
-        last component after the final hyphen (e.g.
-        ``S-1-5-21-...-1104`` -> RID ``1104``).
-
-        Silently returns if the object has no credentials or no hash data.
-
-        Args:
-            obj_dict: Serialized AD object dict from a decoder.
-
-        """
-        # Trust objects carry keys under trustCredentials (not credentials), so
-        # emit those before the credentials early-return below.
-        self._write_kerberos_lines(trust_credential_lines(obj_dict))
-
+        """Emit this object's NTLM line, Kerberos keys, and cleartext in secretsdump format."""
         credentials = obj_dict.get("credentials")
         if not isinstance(credentials, dict):
             return
-
-        # Extract identity fields needed for the pwdump line.
-        username = account_username(obj_dict)
+        username = _secretsdump_username(obj_dict)
         rid = _extract_rid(obj_dict)
+        self._write_ntds(credentials, username, rid)
+        self._write_kerberos(credentials, username)
+        self._write_cleartext(credentials, username)
 
-        self._write_current_hashes(credentials, username, rid)
-        self._write_history_hashes(credentials, username, rid)
-        self._write_kerberos(credentials, obj_dict)
+    def _write_ntds(self, credentials: dict[str, object], username: str, rid: int) -> None:
+        """Write the current ``username:rid:lm:nt:::`` line plus inline ``_historyN`` lines."""
+        nt = _validate_hash(credentials.get("ntHash"))
+        lm = _validate_hash(credentials.get("lmHash"))
+        if nt is not None or lm is not None:
+            self._ntds_line(f"{username}:{rid}:{lm or _EMPTY_LM_HASH}:{nt or _EMPTY_NT_HASH}:::")
 
-    def _write_kerberos(self, credentials: dict[str, object], obj_dict: dict[str, Any]) -> None:
-        """Write Kerberos keys to kerberos_keys.txt as ``principal:etype:key``."""
-        principal = credential_principal(account_domain(obj_dict), account_username(obj_dict))
-        self._write_kerberos_lines(kerberos_key_lines(credentials, principal))
+        nt_hist = credentials.get("ntHistory")
+        lm_hist = credentials.get("lmHistory")
+        nt_hist = nt_hist if isinstance(nt_hist, list) else []
+        lm_hist = lm_hist if isinstance(lm_hist, list) else []
+        for idx in range(max(len(nt_hist), len(lm_hist))):
+            h_nt = _validate_hash(nt_hist[idx]) if idx < len(nt_hist) else None
+            h_lm = _validate_hash(lm_hist[idx]) if idx < len(lm_hist) else None
+            if h_nt is not None or h_lm is not None:
+                self._ntds_line(f"{username}_history{idx}:{rid}:{h_lm or _EMPTY_LM_HASH}:{h_nt or _EMPTY_NT_HASH}:::")
 
-    def _write_kerberos_lines(self, lines: list[str]) -> None:
-        """Append already-formatted ``principal:etype:key`` lines to kerberos_keys.txt."""
-        if not lines:
+    def _write_kerberos(self, credentials: dict[str, object], username: str) -> None:
+        """Write ``username:<etype>:<key>`` lines for the secretsdump-supported etypes."""
+        keys = credentials.get("kerberos")
+        if not isinstance(keys, list):
             return
-        self._ensure_kerberos_file()
-        if self._kerberos_file is None:
-            msg = "Kerberos keys file not opened: _ensure_kerberos_file() failed"
+        for entry in keys:
+            if not isinstance(entry, dict):
+                continue
+            key_entry = cast("dict[str, object]", entry)
+            etype_name = key_entry.get("etypeName")
+            name = _SECRETSDUMP_ETYPES.get(etype_name) if isinstance(etype_name, str) else None
+            key = key_entry.get("key")
+            if name and isinstance(key, str) and key:
+                self._kerberos_line(f"{username}:{name}:{key}")
+
+    def _write_cleartext(self, credentials: dict[str, object], username: str) -> None:
+        """Write the ``username:CLEARTEXT:<password>`` line for reversibly-encrypted passwords."""
+        pw = credentials.get("cleartextPassword")
+        if isinstance(pw, str) and pw:
+            self._cleartext_line(f"{username}:CLEARTEXT:{pw}")
+
+    # --- line writers (open the relevant file on first use) ---
+
+    def _ntds_line(self, line: str) -> None:
+        if self._ntds is None:
+            self._ntds = self._open("hashes.ntds")
+        self._ntds.write(line + "\n")
+
+    def _kerberos_line(self, line: str) -> None:
+        if self._kerberos is None:
+            self._kerberos = self._open("hashes.ntds.kerberos")
+        self._kerberos.write(line + "\n")
+
+    def _cleartext_line(self, line: str) -> None:
+        if self._cleartext is None:
+            self._cleartext = self._open("hashes.ntds.cleartext")
+        self._cleartext.write(line + "\n")
+
+    def _open(self, filename: str) -> io.TextIOWrapper:
+        if self._output_dir is None:
+            msg = "Writer not opened: call open() before write()"
             raise RuntimeError(msg)
-        self._kerberos_file.write("\n".join(lines) + "\n")
-
-    def _write_current_hashes(self, credentials: dict[str, object], username: str, rid: int) -> None:
-        """Write the current NT/LM hash line if at least one hash is present."""
-        nt_hash = _validate_hash(credentials.get("ntHash"))
-        lm_hash = _validate_hash(credentials.get("lmHash"))
-
-        if nt_hash is not None or lm_hash is not None:
-            self._ensure_main_file()
-            if self._file is None:
-                msg = "Main hash file not opened: _ensure_main_file() failed"
-                raise RuntimeError(msg)
-
-            effective_nt = nt_hash if nt_hash is not None else _EMPTY_NT_HASH
-            effective_lm = lm_hash if lm_hash is not None else _EMPTY_LM_HASH
-
-            # Classic pwdump format: username:rid:lm_hash:nt_hash:::
-            self._file.write(f"{username}:{rid}:{effective_lm}:{effective_nt}:::\n")
-
-    def _write_history_hashes(self, credentials: dict[str, object], username: str, rid: int) -> None:
-        """Write paired NT/LM history hash lines."""
-        nt_history = credentials.get("ntHistory", [])
-        lm_history = credentials.get("lmHistory", [])
-
-        if not isinstance(nt_history, list):
-            nt_history = []
-        if not isinstance(lm_history, list):
-            lm_history = []
-
-        max_history = max(len(nt_history), len(lm_history))
-
-        for idx in range(max_history):
-            hist_nt = _validate_hash(nt_history[idx]) if idx < len(nt_history) else None
-            hist_lm = _validate_hash(lm_history[idx]) if idx < len(lm_history) else None
-
-            if hist_nt is not None or hist_lm is not None:
-                self._ensure_history_file()
-                if self._history_file is None:
-                    msg = "History file not opened: _ensure_history_file() failed"
-                    raise RuntimeError(msg)
-
-                effective_hist_nt = hist_nt if hist_nt is not None else _EMPTY_NT_HASH
-                effective_hist_lm = hist_lm if hist_lm is not None else _EMPTY_LM_HASH
-
-                hist_username = f"{username}__history{idx}"
-                self._history_file.write(f"{hist_username}:{rid}:{effective_hist_lm}:{effective_hist_nt}:::\n")
+        return (self._output_dir / filename).open(mode="w", encoding="utf-8", newline="\n", buffering=_WRITE_BUFFER_SIZE)
 
     def close(self) -> None:
-        """Close all open output files.
-
-        Safe to call multiple times -- subsequent calls are no-ops.
-        """
-        if self._file is not None:
-            self._file.close()
-            self._file = None
-            logger.debug("Closed pwdump output: hashes.pwdump")
-
-        if self._history_file is not None:
-            self._history_file.close()
-            self._history_file = None
-            logger.debug("Closed pwdump output: hashes_history.pwdump")
-
-        if self._kerberos_file is not None:
-            self._kerberos_file.close()
-            self._kerberos_file = None
-            logger.debug("Closed pwdump output: kerberos_keys.txt")
-
-    # --- Lazy file creation helpers ---
-
-    def _ensure_main_file(self) -> None:
-        """Open the main hash file if not already open."""
-        if self._file is None:
-            if self._output_dir is None:
-                msg = "Writer not opened: call open() before write()"
-                raise RuntimeError(msg)
-            path = self._output_dir / "hashes.pwdump"
-            self._file = path.open(mode="w", encoding="utf-8", buffering=_WRITE_BUFFER_SIZE)
-
-    def _ensure_history_file(self) -> None:
-        """Open the history hash file if not already open."""
-        if self._history_file is None:
-            if self._output_dir is None:
-                msg = "Writer not opened: call open() before write()"
-                raise RuntimeError(msg)
-            path = self._output_dir / "hashes_history.pwdump"
-            self._history_file = path.open(mode="w", encoding="utf-8", buffering=_WRITE_BUFFER_SIZE)
-
-    def _ensure_kerberos_file(self) -> None:
-        """Open the Kerberos keys file if not already open."""
-        if self._kerberos_file is None:
-            if self._output_dir is None:
-                msg = "Writer not opened: call open() before write()"
-                raise RuntimeError(msg)
-            path = self._output_dir / "kerberos_keys.txt"
-            self._kerberos_file = path.open(mode="w", encoding="utf-8", buffering=_WRITE_BUFFER_SIZE)
-
-
-# --- Hash validation ---
-
-# Length of a valid hex-encoded 16-byte hash (NT or LM).
-_HASH_HEX_LEN: int = 32
+        """Close every open output file (idempotent)."""
+        for fh in (self._ntds, self._kerberos, self._cleartext):
+            if fh is not None:
+                fh.close()
+        self._ntds = None
+        self._kerberos = None
+        self._cleartext = None
 
 
 def _validate_hash(value: object) -> str | None:
@@ -235,39 +155,33 @@ def _validate_hash(value: object) -> str | None:
     return None
 
 
-# --- Identity extraction helpers ---
-
-
 def _extract_rid(obj_dict: dict[str, Any]) -> int:
-    """Extract the RID (Relative Identifier) from the object's SID.
-
-    The RID is the last component of an AD SID string. For example,
-    ``S-1-5-21-3623811015-3361044348-30300510-1104`` has RID ``1104``.
-
-    The RID is the per-domain unique identifier used in the pwdump format
-    to differentiate accounts. Well-known accounts have well-known RIDs
-    (e.g. Administrator=500, Guest=501).
-
-    Args:
-        obj_dict: Serialized AD object dict.
-
-    Returns:
-        The integer RID, or 0 if the SID cannot be parsed.
-
-    """
+    """Return the RID (last objectSid component), or 0 if the SID cannot be parsed."""
     sid = obj_dict.get("objectSid")
     if not isinstance(sid, str):
         return _DEFAULT_RID
-
-    # SID format: S-1-5-21-<sub1>-<sub2>-<sub3>-<rid>
-    # The RID is always the last hyphen-separated component.
     parts = sid.rsplit("-", maxsplit=1)
     if len(parts) == SID_RSPLIT_PART_COUNT:
         try:
             return int(parts[1])
         except ValueError:
-            # Malformed SID -- the last component is not a number.
             logger.warning("Could not parse RID from SID: %s", sid)
             return _DEFAULT_RID
-
     return _DEFAULT_RID
+
+
+def _secretsdump_username(obj_dict: dict[str, Any]) -> str:
+    r"""Return the username exactly as secretsdump writes it.
+
+    secretsdump prefixes ``<UPN-domain>\`` only for accounts that carry a
+    userPrincipalName (e.g. ``test@TEST.corp`` -> ``TEST.corp\test``); built-in
+    and machine accounts, which have no UPN, are emitted as the bare
+    sAMAccountName.
+    """
+    sam = account_username(obj_dict)
+    upn = obj_dict.get("userPrincipalName")
+    if isinstance(upn, str) and "@" in upn:
+        domain = upn.rsplit("@", 1)[1]
+        if domain:
+            return f"{domain}\\{sam}"
+    return sam

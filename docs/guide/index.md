@@ -17,6 +17,6 @@ The boot key is required to decrypt credentials. NTDSWolf resolves it in priorit
 ## What comes next
 
 - [Credential Types](credential-types.md) — every credential and object class NTDSWolf decodes.
-- [Output Formats](output-formats.md) — NDJSON, JSON, CSV, hashcat, John, and pwdump.
+- [Output Formats](output-formats.md) — NDJSON, JSON, CSV, hashcat, and secretsdump-style pwdump.
 - [Windows Server Compatibility](compatibility.md) — supported NTDS.dit versions.
 - [CLI Reference](../reference/cli.md) — every flag and argument.

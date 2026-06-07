@@ -25,7 +25,7 @@ NTDSWolf parses Windows Active Directory NTDS.dit database files and extracts pa
 
 - **Pure Python** -- runs on Linux, macOS, and Windows with no .NET dependency.
 - **Parses modern NTDS.dit** -- handles Windows Server 2008 through 2025, including the AES PEK era.
-- **Structured output** -- emits NDJSON, JSON, and CSV alongside the classic hashcat, John, and pwdump cracking formats.
+- **Structured output** -- emits NDJSON, JSON, and CSV alongside hashcat and secretsdump-compatible pwdump cracking formats.
 - **Typed and tested** -- full type hints, strict linting, and a test suite covering the decryption and output paths.
 
 ## Installation
@@ -74,7 +74,7 @@ Options:
   --system PATH                Path to SYSTEM registry hive for boot key extraction
   --bootkey HEX                Raw 32-character hex boot key (overrides --system)
   -o, --output PATH            Output directory (default: ./ntdswolf-output/)
-  -f, --format FORMAT          Output format: ndjson, json, csv, hashcat, john, pwdump
+  -f, --format FORMAT          Output format: ndjson, json, csv, hashcat, pwdump
                                (default: ndjson)
   -e, --extract CLASSES        Comma-separated object classes to extract:
                                users, computers, groups, trusts, domains, all
@@ -83,6 +83,7 @@ Options:
   --no-history                 Exclude password history hashes
   --include-deleted            Include deleted (tombstoned) objects (excluded by default)
   --naming MODE                Object naming: dn, sam, cn (default: dn)
+  --hashcat-username FIELD     hashcat line username: sam, upn, rid, sid (default: sam)
   --raw                        Include raw/unmapped attributes in output
   -v, --verbose                Verbose logging to stderr
   -q, --quiet                  Suppress all non-error output
@@ -124,47 +125,38 @@ ntdswolf ntds.dit --system SYSTEM --format csv
 
 ### hashcat
 
-NT hashes in hashcat mode 1000 format, with a user mapping file. LM, history, and Kerberos-key files are written when that data is present.
+NT and LM hashes as `username:hash` lines for `hashcat --username`, split per object class, hash type (NT/LM), and age (current/history). By default the username is the sAMAccountName; `--hashcat-username` switches it to `upn`, `rid`, or `sid`. Kerberos keys are not emitted (use `pwdump` for those).
 
 ```bash
 ntdswolf ntds.dit --system SYSTEM --format hashcat
-# Output: hashes_nt.hashcat, hashes_nt.hashcat.users,
-#         hashes_lm.hashcat, hashes_*_history.hashcat, kerberos_keys.txt
+# Output: ntlm_<type>_current.txt, ntlm_<type>_history.txt,
+#         lm_<type>_current.txt, lm_<type>_history.txt
 ```
 
 ```
-# hashes_nt.hashcat
-7facdc498ed1680c4fd1448319a8c04f
+# ntlm_user_current.txt
+Administrator:7facdc498ed1680c4fd1448319a8c04f
 
-# hashes_nt.hashcat.users
-7facdc498ed1680c4fd1448319a8c04f:DOMAIN\Administrator
-
-# kerberos_keys.txt
-DOMAIN\Administrator:AES256-CTS-HMAC-SHA1-96:6c2d8...e1
-```
-
-### John the Ripper
-
-```bash
-ntdswolf ntds.dit --system SYSTEM --format john
-# Output: hashes.john
-```
-
-```
-Administrator:$NT$7facdc498ed1680c4fd1448319a8c04f
+# lm_user_current.txt  (the two 8-byte LM halves)
+Administrator:1122334455667788
+Administrator:aabbccddeeff0011
 ```
 
 ### pwdump
 
-Classic `username:rid:lm:nt:::` format. Kerberos keys are also written to `kerberos_keys.txt`.
+secretsdump-compatible "newer pwdump" output -- byte-for-byte the files `impacket-secretsdump -outputfile` writes: the classic `username:rid:lm:nt:::` lines plus Kerberos-key and cleartext sidecar files.
 
 ```bash
 ntdswolf ntds.dit --system SYSTEM --format pwdump
-# Output: hashes.pwdump, hashes_history.pwdump, kerberos_keys.txt
+# Output: hashes.ntds, hashes.ntds.kerberos, hashes.ntds.cleartext
 ```
 
 ```
+# hashes.ntds
 Administrator:500:aad3b435b51404eeaad3b435b51404ee:7facdc498ed1680c4fd1448319a8c04f:::
+
+# hashes.ntds.kerberos
+Administrator:aes256-cts-hmac-sha1-96:6c2d8...e1
 ```
 
 ## Extracted Data
@@ -233,7 +225,7 @@ ntdswolf/
   core/         Pipeline orchestration, database wrapper, caches, worker pool
   crypto/       Boot key, PEK, and NT/LM hash decryption; trust/DPAPI/LAPS/key-credential parsers
   decoders/     Per-class object decoders and the decoder registry
-  output/       Format writers (NDJSON, JSON, CSV, hashcat, john, pwdump)
+  output/       Format writers (NDJSON, JSON, CSV, hashcat, pwdump)
   models/       Enums and flag definitions
   constants.py  Spec-derived constants and well-known values
 ```

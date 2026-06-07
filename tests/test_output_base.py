@@ -14,7 +14,7 @@ _NT = "7facdc498ed1680c4fd1448319a8c04f"
 
 
 def test_supported_formats_present():
-    assert {"ndjson", "json", "csv", "hashcat", "john", "pwdump"} <= SUPPORTED_FORMATS
+    assert {"ndjson", "json", "csv", "hashcat", "pwdump"} <= SUPPORTED_FORMATS
 
 
 def test_output_filename_friendly_names():
@@ -67,4 +67,4 @@ def test_hash_format_writes_single_combined_file(tmp_path):
     mgr.write({"_object_class": "user", "sAMAccountName": "a", "objectSid": "S-1-5-21-1-2-3-500", "credentials": {"ntHash": _NT}})
     mgr.write({"_object_class": "computer", "sAMAccountName": "b$", "objectSid": "S-1-5-21-1-2-3-1000", "credentials": {"ntHash": _NT}})
     assert mgr.finalize() == {"user": 1, "computer": 1}
-    assert len((tmp_path / "hashes.pwdump").read_text().splitlines()) == 2
+    assert len((tmp_path / "hashes.ntds").read_text().splitlines()) == 2

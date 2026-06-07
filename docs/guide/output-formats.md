@@ -35,58 +35,68 @@ ntdswolf ntds.dit --system SYSTEM --format csv
 
 ## hashcat
 
-NT hashes in hashcat mode 1000 format, with a companion user-mapping file. Additional files are written only when the corresponding data is present:
+NT and LM hashes as `username:hash` lines for `hashcat --username`. Files are split by object class, hash type (NT/LM), and age (current/history), and are written only when the corresponding hashes are present:
 
 | File | Contents |
 | --- | --- |
-| `hashes_nt.hashcat` | Bare NT hashes, one per line (mode 1000). |
-| `hashes_nt.hashcat.users` | `hash:DOMAIN\username` mapping for correlating cracked results. |
-| `hashes_lm.hashcat` | LM hash halves, one per line (mode 3000). |
-| `hashes_nt_history.hashcat` | Historical NT hashes (only if any account has password history). |
-| `hashes_lm_history.hashcat` | Historical LM hash halves. |
-| `kerberos_keys.txt` | `principal:etype:key` Kerberos keys for pass-the-key (only if any account has decoded keys). |
+| `ntlm_<type>_current.txt` | Current NT hashes, `username:nt_hash` (mode 1000). |
+| `ntlm_<type>_history.txt` | Historical NT hashes (only if any account has password history). |
+| `lm_<type>_current.txt` | Current LM hashes, split into their two 8-byte halves, `username:lm_half` (mode 3000). |
+| `lm_<type>_history.txt` | Historical LM hash halves. |
+
+`<type>` is the object class: `user`, `computer`, `gmsa`, `smsa`, `dmsa` (any other class is lowercased and sanitized to a filesystem-safe name). Files are ASCII with `\n` line endings. Kerberos keys are intentionally **not** emitted — they are pass-the-key material, not hashcat-crackable hashes; use the `pwdump` format for those.
+
+By default `username` is the sAMAccountName. Use `--hashcat-username` to switch it to the UPN (`upn`), the RID (`rid`), or the full objectSid (`sid`):
 
 ```bash
 ntdswolf ntds.dit --system SYSTEM --format hashcat
+ntdswolf ntds.dit --system SYSTEM --format hashcat --hashcat-username rid
 ```
 
 ```
-# hashes_nt.hashcat
-7facdc498ed1680c4fd1448319a8c04f
+# ntlm_user_current.txt
+Administrator:7facdc498ed1680c4fd1448319a8c04f
 
-# hashes_nt.hashcat.users
-7facdc498ed1680c4fd1448319a8c04f:DOMAIN\Administrator
-
-# kerberos_keys.txt
-DOMAIN\Administrator:AES256-CTS-HMAC-SHA1-96:6c2d8...e1
-DOMAIN\Administrator:AES128-CTS-HMAC-SHA1-96:9af3b...02
+# lm_user_current.txt  (the two 8-byte LM halves, one per line)
+Administrator:1122334455667788
+Administrator:aabbccddeeff0011
 ```
 
-## John the Ripper
+Crack with `hashcat --username`, which ignores the `username:` prefix:
 
 ```bash
-ntdswolf ntds.dit --system SYSTEM --format john
-```
-
-```
-Administrator:$NT$7facdc498ed1680c4fd1448319a8c04f
+hashcat -m 1000 --username ntlm_user_current.txt wordlist.txt
+hashcat -m 3000 --username lm_user_current.txt wordlist.txt
 ```
 
 ## pwdump
 
-Classic `username:rid:lm:nt:::` format. History goes to `hashes_history.pwdump`, and decoded Kerberos keys are written to `kerberos_keys.txt` (same `principal:etype:key` format as the hashcat output).
+secretsdump-compatible "newer pwdump" output — byte-for-byte the files `impacket-secretsdump -outputfile` writes:
+
+| File | Contents |
+| --- | --- |
+| `hashes.ntds` | `username:rid:lm:nt:::`, with inline `username_historyN:...` lines for password history. |
+| `hashes.ntds.kerberos` | `username:<etype>:<key>` Kerberos keys (lowercase etypes; no RC4, which is already the NT hash). |
+| `hashes.ntds.cleartext` | `username:CLEARTEXT:<password>` for reversibly-encrypted passwords. |
+
+This is the modern pwdump secretsdump emits: the classic `username:rid:lm:nt:::` line plus the Kerberos-key and cleartext sidecar files. Accounts that carry a userPrincipalName are prefixed with their UPN domain (`TEST.corp\test2`), exactly as secretsdump does.
 
 ```bash
 ntdswolf ntds.dit --system SYSTEM --format pwdump
 ```
 
 ```
+# hashes.ntds
 Administrator:500:aad3b435b51404eeaad3b435b51404ee:7facdc498ed1680c4fd1448319a8c04f:::
+
+# hashes.ntds.kerberos
+Administrator:aes256-cts-hmac-sha1-96:6c2d8...e1
+Administrator:aes128-cts-hmac-sha1-96:9af3b...02
 ```
 
 ## Selecting object classes
 
-`--extract` / `-e` limits output to specific object classes. It accepts singular or plural names (`user` or `users`) and `all` for everything (the default). The filter applies to every format, including the hash formats — `--extract users` keeps machine accounts out of `hashes_nt.hashcat`, and `--extract computers` keeps user accounts out.
+`--extract` / `-e` limits output to specific object classes. It accepts singular or plural names (`user` or `users`) and `all` for everything (the default). The filter applies to every format, including the hash formats — `--extract users` keeps machine accounts out of `ntlm_user_current.txt`, and `--extract computers` keeps user accounts out.
 
 ```bash
 # Only user accounts, as hashcat-ready NT hashes
