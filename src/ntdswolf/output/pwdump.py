@@ -84,15 +84,16 @@ class PwdumpWriter:
         if nt is not None or lm is not None:
             self._ntds_line(f"{username}:{rid}:{lm or _EMPTY_LM_HASH}:{nt or _EMPTY_NT_HASH}:::")
 
+        # secretsdump pairs NT/LM history via zip (shortest wins) and, with its
+        # NTDS default of noLMHash=True, forces the LM field to the empty-LM
+        # constant -- the LM history values matter only for their count.
         nt_hist = credentials.get("ntHistory")
         lm_hist = credentials.get("lmHistory")
         nt_hist = nt_hist if isinstance(nt_hist, list) else []
         lm_hist = lm_hist if isinstance(lm_hist, list) else []
-        for idx in range(max(len(nt_hist), len(lm_hist))):
-            h_nt = _validate_hash(nt_hist[idx]) if idx < len(nt_hist) else None
-            h_lm = _validate_hash(lm_hist[idx]) if idx < len(lm_hist) else None
-            if h_nt is not None or h_lm is not None:
-                self._ntds_line(f"{username}_history{idx}:{rid}:{h_lm or _EMPTY_LM_HASH}:{h_nt or _EMPTY_NT_HASH}:::")
+        for idx in range(min(len(nt_hist), len(lm_hist))):
+            h_nt = _validate_hash(nt_hist[idx]) or _EMPTY_NT_HASH
+            self._ntds_line(f"{username}_history{idx}:{rid}:{_EMPTY_LM_HASH}:{h_nt}:::")
 
     def _write_kerberos(self, credentials: dict[str, object], username: str) -> None:
         """Write ``username:<etype>:<key>`` lines for the secretsdump-supported etypes."""

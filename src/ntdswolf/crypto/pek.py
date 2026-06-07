@@ -96,7 +96,7 @@ class PEKList:
 # ---------------------------------------------------------------------------
 
 
-def pek_decrypt_secret(encrypted: bytes, pek_list: PEKList) -> bytes:
+def pek_decrypt_secret(encrypted: bytes, pek_list: PEKList, *, keep_padding: bool = False) -> bytes:
     """Decrypt an individual encrypted attribute value (ENC_SECRET blob).
 
     This handles the PEK layer only.  The caller is responsible for any
@@ -106,6 +106,11 @@ def pek_decrypt_secret(encrypted: bytes, pek_list: PEKList) -> bytes:
     Args:
         encrypted: Raw encrypted attribute bytes (starts with ENC_SECRET header).
         pek_list: Decrypted PEK list.
+        keep_padding: If True, return the AES plaintext without stripping PKCS7
+            padding.  Password-history blobs need this: secretsdump treats the
+            trailing padding block as an extra (DES-un-obfuscated) history entry,
+            so stripping it would diverge from secretsdump output.  RC4 blobs are
+            unaffected (the stream cipher adds no padding).
 
     Returns:
         Decrypted plaintext bytes.
@@ -124,7 +129,7 @@ def pek_decrypt_secret(encrypted: bytes, pek_list: PEKList) -> bytes:
     if algo_id in _RC4_ALGOS:
         return _decrypt_secret_rc4(encrypted, pek_list)
     if algo_id == ALGO_DB_AES:
-        return _decrypt_secret_aes(encrypted, pek_list)
+        return _decrypt_secret_aes(encrypted, pek_list, keep_padding=keep_padding)
 
     msg = f"Unknown ENC_SECRET algorithm ID: {algo_id:#x}"
     raise BootKeyError(msg)
@@ -150,7 +155,7 @@ def _decrypt_secret_rc4(encrypted: bytes, pek_list: PEKList) -> bytes:
     return ARC4.new(rc4_key).encrypt(ciphertext)
 
 
-def _decrypt_secret_aes(encrypted: bytes, pek_list: PEKList) -> bytes:
+def _decrypt_secret_aes(encrypted: bytes, pek_list: PEKList, *, keep_padding: bool = False) -> bytes:
     """Remove the AES PEK layer from an encrypted attribute value.
 
     Uses AES-128-CBC with the PEK as key and the embedded Salt as IV.
@@ -164,7 +169,7 @@ def _decrypt_secret_aes(encrypted: bytes, pek_list: PEKList) -> bytes:
 
     pek_key = pek_list.get_key(pek_index)
 
-    return _aes_cbc_decrypt(pek_key, ciphertext, iv=salt)
+    return _aes_cbc_decrypt(pek_key, ciphertext, iv=salt, keep_padding=keep_padding)
 
 
 # ---------------------------------------------------------------------------
@@ -172,12 +177,15 @@ def _decrypt_secret_aes(encrypted: bytes, pek_list: PEKList) -> bytes:
 # ---------------------------------------------------------------------------
 
 
-def _aes_cbc_decrypt(key: bytes, ciphertext: bytes, iv: bytes = b"\x00" * 16) -> bytes:
+def _aes_cbc_decrypt(key: bytes, ciphertext: bytes, iv: bytes = b"\x00" * 16, *, keep_padding: bool = False) -> bytes:
     """AES-128-CBC decrypt with PKCS7 unpadding, tolerant of unpadded data.
 
     Some NTDS blobs are not PKCS7-padded (the plaintext length is an exact
     multiple of the block size).  We attempt ``unpad`` first and fall back to
-    returning the raw decrypted bytes.
+    returning the raw decrypted bytes.  When ``keep_padding`` is set the
+    plaintext is returned verbatim (no unpadding) -- password-history blobs rely
+    on the trailing padding block surviving, because secretsdump emits it as a
+    history entry.
     """
     plaintext = b""
     # Some implementations reset the IV per block for RC4-era compatibility.
@@ -194,6 +202,9 @@ def _aes_cbc_decrypt(key: bytes, ciphertext: bytes, iv: bytes = b"\x00" * 16) ->
             block = _pad_to_block(block)
             cipher = AES.new(key, AES.MODE_CBC, iv)
             plaintext += cipher.decrypt(block)
+
+    if keep_padding:
+        return plaintext
 
     try:
         return unpad(plaintext, 16)

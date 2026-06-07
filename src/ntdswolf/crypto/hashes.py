@@ -26,8 +26,7 @@ from typing import TYPE_CHECKING
 
 from Crypto.Cipher import DES
 
-from ntdswolf.constants import DWORD_SIZE
-from ntdswolf.crypto.pek import BootKeyError
+from ntdswolf.crypto.pek import BootKeyError, PEKList, pek_decrypt_secret
 
 if TYPE_CHECKING:
     from ntdswolf.crypto.pek import PekDecryptor
@@ -161,34 +160,43 @@ def decrypt_lm_hash(encrypted: bytes, pek: PekDecryptor, rid: int) -> bytes | No
 
 
 def decrypt_hash_history(encrypted: bytes, pek: PekDecryptor, rid: int) -> list[bytes]:
-    """Decrypt ``ntPwdHistory`` or ``lmPwdHistory`` to a list of hashes.
+    """Decrypt ``ntPwdHistory`` / ``lmPwdHistory`` to the full list of stored hashes.
 
-    The blob structure after PEK decryption is:
-        - 4-byte LE count of hashes
-        - *count* x 16-byte DES-encrypted hashes
+    Mirrors secretsdump exactly: the PEK layer is removed *without* PKCS7
+    unpadding, then every 16-byte block is DES-un-obfuscated with the account
+    RID. The first entry is the current password (identical to ``unicodePwd`` /
+    ``dBCSPwd``); callers that want only *previous* passwords drop index 0.
+
+    For AES-era databases the (block-aligned) history plaintext carries a trailing
+    full PKCS7 padding block. It is intentionally kept and DES-un-obfuscated like
+    any other block, because secretsdump emits it as a history entry (see
+    [MS-SAMR] 2.2.11.1 for the PEK layer; the padding behaviour is a secretsdump
+    convention, not a spec requirement). RC4-era databases have no padding block.
+
+    History decryption deliberately reads the unlocked PEK keys from ``pek`` and
+    runs ntdswolf's own decryption rather than calling ``pek.decrypt()``: dissect's
+    ``PEK.decrypt`` PKCS7-unpads, which would drop the trailing block.
 
     Args:
-        encrypted: Raw bytes of the history attribute.
-        pek: PEK that removes the PEK layer (dissect's PEK or a PEKList).
+        encrypted: Raw bytes of the history attribute's ENC_SECRET blob.
+        pek: Unlocked dissect ``PEK`` or ntdswolf ``PEKList`` (read for its keys).
         rid: Account RID for the DES layer.
 
     Returns:
-        List of 16-byte hashes (may be empty on failure).
+        List of 16-byte hashes, current first (may be empty on failure).
 
     """
+    keys = _pek_key_dict(pek)
+    if not keys:
+        return []
+
     try:
-        after_pek = pek.decrypt(encrypted)
-    except (BootKeyError, RuntimeError, KeyError, ValueError, struct.error):
+        after_pek = pek_decrypt_secret(encrypted, PEKList(keys=keys), keep_padding=True)
+    except (BootKeyError, ValueError, struct.error):
         logger.debug("Failed to remove PEK layer from hash history", exc_info=True)
         return []
 
-    if len(after_pek) < DWORD_SIZE:
-        return []
-
     hashes: list[bytes] = []
-    # The history blob is simply N concatenated 16-byte DES-encrypted hashes
-    # with no explicit count prefix in some versions, but most have a count.
-    # We try to parse as many 16-byte blocks as possible.
     for i in range(len(after_pek) // _HASH_LEN):
         chunk = after_pek[i * _HASH_LEN : (i + 1) * _HASH_LEN]
         try:
@@ -197,3 +205,16 @@ def decrypt_hash_history(encrypted: bytes, pek: PekDecryptor, rid: int) -> list[
             logger.debug("Failed to remove DES layer from history entry %d", i, exc_info=True)
 
     return hashes
+
+
+def _pek_key_dict(pek: PekDecryptor) -> dict[int, bytes]:
+    """Extract the unlocked ``{index: 16-byte key}`` map from a dissect PEK or PEKList.
+
+    Both dissect's ``PEK`` and ntdswolf's :class:`PEKList` expose ``.keys`` as a
+    mapping of PEK index to key. Returns an empty dict when absent (e.g. the PEK
+    was never unlocked), which makes history decryption a safe no-op.
+    """
+    raw = getattr(pek, "keys", None)
+    if not isinstance(raw, dict):
+        return {}
+    return {int(k): bytes(v) for k, v in raw.items() if isinstance(v, (bytes, bytearray))}

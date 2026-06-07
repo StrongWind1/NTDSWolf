@@ -9,7 +9,8 @@ from __future__ import annotations
 import hashlib
 import struct
 
-from Crypto.Cipher import ARC4, DES
+from Crypto.Cipher import AES, ARC4, DES
+from Crypto.Util.Padding import pad
 
 from ntdswolf.crypto.hashes import (
     _derive_des_keys,
@@ -53,3 +54,19 @@ def test_decrypt_hash_history_roundtrip():
     obf = _des_obfuscate(_NT, rid) + _des_obfuscate(_EMPTY, rid)
     blob = _wrap_pek_rc4(obf, pek_key)
     assert decrypt_hash_history(blob, PEKList(keys={0: pek_key}), rid) == [_NT, _EMPTY]
+
+
+def _wrap_pek_aes(plaintext, pek_key=b"\x11" * 16, salt=b"\x22" * 16):
+    # AES path: header (algo 0x13) + PekIndex + Salt(IV) + SecretLength + AES-CBC ciphertext.
+    ct = AES.new(pek_key, AES.MODE_CBC, salt).encrypt(pad(plaintext, 16))
+    return struct.pack("<HHI", 0x13, 0, 0) + salt + struct.pack("<I", len(plaintext)) + ct
+
+
+def test_decrypt_hash_history_keeps_aes_padding_block():
+    # AES-era history blobs carry a trailing full PKCS7 padding block that
+    # secretsdump DES-un-obfuscates as an extra entry. It must NOT be stripped:
+    # the regression was unpad() removing it, leaving history short/empty.
+    rid, pek_key = 500, b"\x11" * 16
+    blob = _wrap_pek_aes(_des_obfuscate(_NT, rid), pek_key)  # one real hash -> one padding block
+    padding_artifact = _remove_des_layer(b"\x10" * 16, rid)
+    assert decrypt_hash_history(blob, PEKList(keys={0: pek_key}), rid) == [_NT, padding_artifact]

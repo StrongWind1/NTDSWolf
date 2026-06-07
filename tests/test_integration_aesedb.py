@@ -248,6 +248,18 @@ def test_pwdump_kerberos_file_matches_secretsdump_win2016(tmp_path):
     assert len(aes256[0].split(":")[2]) == 64  # 32-byte AES256 key as hex
 
 
+def test_pwdump_history_matches_secretsdump_win2016(tmp_path):
+    # Regression: ntPwdHistory was silently dropped (dissect returns it as a
+    # one-element list, which failed an isinstance(bytes) check) and the AES
+    # padding block was stripped by unpad(). krbtgt's history must now match
+    # `secretsdump -history` byte-for-byte, including the DES-un-obfuscated
+    # trailing padding block secretsdump emits as history0.
+    out_dir = _run_format("win2016_64", tmp_path, "pwdump")
+    lines = (out_dir / "hashes.ntds").read_text().splitlines()
+    assert "krbtgt:502:aad3b435b51404eeaad3b435b51404ee:07eeeab9174bbe37ca33e062801819cc:::" in lines
+    assert "krbtgt_history0:502:aad3b435b51404eeaad3b435b51404ee:b5ca59b606a13445af2043409d2c0086:::" in lines
+
+
 def test_extract_filter_respected_by_hashcat_format_win2016(tmp_path):
     # R-7.2: --extract must filter credential-bearing classes too. Machine
     # accounts (sAMAccountName ending in "$") must not leak into a users-only

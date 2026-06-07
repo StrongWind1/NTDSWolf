@@ -35,14 +35,27 @@ def test_ntds_line(tmp_path):
 
 
 def test_history_is_inline_with_single_underscore(tmp_path):
+    # History lines are inline (single underscore), paired NT/LM by count, with the
+    # LM field forced to the empty-LM constant (secretsdump's noLMHash default) even
+    # when lmHistory carries real values.
     w = PwdumpWriter()
     w.open(tmp_path, "user")
-    w.write({"_object_class": "user", "sAMAccountName": "u", "objectSid": "S-1-5-21-1-2-3-1105", "credentials": {"ntHash": _NT, "ntHistory": [_NT, _NT]}})
+    w.write({"_object_class": "user", "sAMAccountName": "u", "objectSid": "S-1-5-21-1-2-3-1105", "credentials": {"ntHash": _NT, "ntHistory": [_NT, _NT], "lmHistory": ["1122334455667788aabbccddeeff0011", "1122334455667788aabbccddeeff0011"]}})
     w.close()
     lines = (tmp_path / "hashes.ntds").read_text().splitlines()
     assert lines[0] == f"u:1105:{_EMPTY_LM}:{_NT}:::"
     assert lines[1] == f"u_history0:1105:{_EMPTY_LM}:{_NT}:::"
     assert lines[2] == f"u_history1:1105:{_EMPTY_LM}:{_NT}:::"
+
+
+def test_history_count_is_min_of_nt_and_lm(tmp_path):
+    # secretsdump zips NT/LM history (shortest wins): NT history with no matching
+    # LM history produces no history lines at all.
+    w = PwdumpWriter()
+    w.open(tmp_path, "user")
+    w.write({"_object_class": "user", "sAMAccountName": "u", "objectSid": "S-1-5-21-1-2-3-1105", "credentials": {"ntHash": _NT, "ntHistory": [_NT, _NT]}})
+    w.close()
+    assert (tmp_path / "hashes.ntds").read_text() == f"u:1105:{_EMPTY_LM}:{_NT}:::\n"
 
 
 def test_kerberos_lowercase_etypes_without_rc4(tmp_path):

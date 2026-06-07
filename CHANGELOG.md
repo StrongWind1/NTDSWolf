@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Password history (`ntPwdHistory` / `lmPwdHistory`) was silently dropped for every account, so `hashes.ntds` was missing all `_history` lines. dissect returns the blob wrapped in a one-element list (which failed an `isinstance(bytes)` check), and the AES PEK layer was PKCS7-unpadded, stripping the trailing block secretsdump keeps. History is now decrypted faithfully and `hashes.ntds` is byte-identical to `secretsdump -history` across the RC4 and AES eras (Windows Server 2008-2022).
 - Removed the redundant `--exclude-deleted` flag; `--include-deleted` is now a single switch (deleted objects are excluded by default).
 
 ## [0.2.0] - 2026-06-07

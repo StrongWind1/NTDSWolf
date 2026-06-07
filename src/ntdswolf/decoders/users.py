@@ -203,19 +203,22 @@ class UserDecoder(BaseDecoder):
         creds["ntHash"] = _current_nt_hash(self._get_attr(obj, "unicodePwd", raw=True), pek_list, rid)
         creds["lmHash"] = _current_lm_hash(self._get_attr(obj, "dBCSPwd", raw=True), pek_list, rid)
 
-        # --- NT hash history (ntPwdHistory / ATTk589918) ---
-        nt_hist_enc = self._get_attr(obj, "ntPwdHistory", raw=True)
-        if nt_hist_enc is not None and isinstance(nt_hist_enc, bytes) and rid is not None:
-            nt_history = decrypt_hash_history(nt_hist_enc, pek_list, rid)
-            creds["ntHistory"] = [h.hex() for h in nt_history]
+        # --- Password history (ntPwdHistory / ATTk589918, lmPwdHistory / ATTk589984) ---
+        # dissect returns these single-valued blobs wrapped in a one-element list.
+        # Index 0 of the decrypted history is the *current* password (already
+        # emitted above as ntHash/lmHash), so it is dropped to leave only previous
+        # passwords -- matching secretsdump's ``NTHistory[1:]`` slice. Empty-LM
+        # entries are deliberately kept (not filtered): the pwdump writer pairs
+        # NT/LM history by count, so the LM list length must mirror secretsdump's.
+        nt_hist_blob = _history_blob(self._get_attr(obj, "ntPwdHistory", raw=True))
+        if nt_hist_blob is not None and rid is not None:
+            creds["ntHistory"] = [h.hex() for h in decrypt_hash_history(nt_hist_blob, pek_list, rid)[1:]]
         else:
             creds["ntHistory"] = []
 
-        # --- LM hash history (lmPwdHistory / ATTk589984) ---
-        lm_hist_enc = self._get_attr(obj, "lmPwdHistory", raw=True)
-        if lm_hist_enc is not None and isinstance(lm_hist_enc, bytes) and rid is not None:
-            lm_history = decrypt_hash_history(lm_hist_enc, pek_list, rid)
-            creds["lmHistory"] = [h.hex() for h in lm_history if h.hex() != EMPTY_LM_HASH]
+        lm_hist_blob = _history_blob(self._get_attr(obj, "lmPwdHistory", raw=True))
+        if lm_hist_blob is not None and rid is not None:
+            creds["lmHistory"] = [h.hex() for h in decrypt_hash_history(lm_hist_blob, pek_list, rid)[1:]]
         else:
             creds["lmHistory"] = []
 
@@ -230,6 +233,24 @@ class UserDecoder(BaseDecoder):
             merge_supplemental(supp, creds)
 
         result["credentials"] = creds if any(v for v in creds.values()) else None
+
+
+def _history_blob(raw: object) -> bytes | None:
+    """Return the encrypted history blob from dissect's raw attribute value.
+
+    dissect surfaces the single-valued ``ntPwdHistory`` / ``lmPwdHistory``
+    attributes as a one-element list of bytes (its multi-valued representation);
+    other paths may hand back bytes directly. Returns the first usable blob, or
+    None when the attribute is absent or empty. Without this coercion the history
+    is silently dropped, because a list is not ``bytes``.
+    """
+    if isinstance(raw, (bytes, bytearray)):
+        return bytes(raw) or None
+    if isinstance(raw, list):
+        for element in raw:
+            if isinstance(element, (bytes, bytearray)) and element:
+                return bytes(element)
+    return None
 
 
 def _current_nt_hash(encrypted: object, pek_list: PekDecryptor, rid: int | None) -> str | None:
