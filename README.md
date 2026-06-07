@@ -84,7 +84,6 @@ Options:
   --include-deleted            Include deleted (tombstoned) objects (excluded by default)
   --naming MODE                Object naming: dn, sam, cn (default: dn)
   --hashcat-username FIELD     hashcat line username: sam, upn, rid, sid (default: sam)
-  --raw                        Include raw/unmapped attributes in output
   -v, --verbose                Verbose logging to stderr
   -q, --quiet                  Suppress all non-error output
   --version                    Print version and exit

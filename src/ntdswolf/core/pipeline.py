@@ -85,7 +85,6 @@ class ExtractionConfig:
     # --- Output style ---
     naming: str = "dn"  # DN format for object naming ("dn" or "sam")
     hashcat_username: str = "sam"  # Username field for hashcat output (sam/upn/rid/sid)
-    raw: bool = False  # Include all raw attributes in output
 
     # --- Logging ---
     verbose: bool = False  # Debug-level logging

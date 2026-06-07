@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `--hashcat-username` selects the username field in hashcat output lines: `sam` (sAMAccountName, the default), `upn`, `rid`, or `sid`.
 - Structured output (NDJSON/JSON/CSV) now captures the previous-password and service Kerberos key sets from `supplementalCredentials` -- the `KERB_STORED_CREDENTIAL_NEW` `OldCredentials` / `OlderCredentials` / `ServiceCredentials` arrays -- under `kerberosOld` / `kerberosOlder` / `kerberosService`, alongside the current `kerberos` keys. These were previously dropped, yet every computer account (and any password-changed user) carries them. The hashcat and pwdump outputs are unchanged: they still emit only the current key set, matching secretsdump.
+- Every credentialed object now includes `supplementalCredentialsRaw`: the complete decoded `supplementalCredentials` structure verbatim -- every package (including the legacy `Primary:Kerberos` and the `Packages` list), the default salt and iteration count, and all four key arrays, with byte values hex-encoded and nothing curated away.
 
 ### Changed
 
@@ -19,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 - The John the Ripper output format (`--format john`); use `hashcat` or `pwdump`.
+- The `--raw` flag, which never had any effect. The completeness it implied is now always on via `supplementalCredentialsRaw` (see Added).
 
 ### Fixed
 

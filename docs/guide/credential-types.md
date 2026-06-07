@@ -27,6 +27,8 @@ NTDSWolf extracts NT/LM hashes and history, Kerberos keys, WDigest, cleartext, N
 
 The structured formats (NDJSON/JSON/CSV) surface the four `KERB_STORED_CREDENTIAL_NEW` key arrays separately: `kerberos` (current), `kerberosOld` / `kerberosOlder` (previous passwords), and `kerberosService` (SPN-salted service keys). The hashcat and pwdump outputs emit only the current set, matching secretsdump.
 
+For true raw completeness, every credentialed object also carries `supplementalCredentialsRaw` — the entire decoded `supplementalCredentials` structure verbatim (every package, including the legacy `Primary:Kerberos` and the `Packages` list, plus the default salt and iteration count), with byte values hex-encoded and nothing curated away.
+
 ## Object classes
 
 The pipeline decodes each object's common attributes (distinguished name, objectGUID, objectSid, name, timestamps, isDeleted) and adds class-specific fields for the classes below. Any other class is emitted with its common attributes only.

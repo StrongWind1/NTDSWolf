@@ -43,3 +43,27 @@ def test_merge_captures_wdigest_and_ntowf():
     merge_supplemental(supp, creds)
     assert creds["wdigest"] == ["01" * 16, "02" * 16]
     assert creds["ntlmStrongNTOWF"] == "09" * 16
+
+
+def test_raw_dump_preserves_complete_structure_verbatim():
+    # The complete decoded structure is always surfaced, including the otherwise
+    # curated-away legacy package, Packages metadata, and default iteration count.
+    supp = {
+        "Primary:Kerberos-Newer-Keys": {"DefaultSalt": b"S\x00", "DefaultIterationCount": 4096, "Credentials": [{"KeyType": 18, "Key": b"\xaa" * 32}]},
+        "Primary:Kerberos": {"DefaultSalt": b"S\x00", "Credentials": [{"KeyType": 3, "Key": b"\xbb" * 8}]},
+        "Packages": ["Kerberos-Newer-Keys", "Kerberos"],
+        "Primary:WDigest": [b"\x01" * 16],
+    }
+    creds: dict = {}
+    merge_supplemental(supp, creds)
+    raw = creds["supplementalCredentialsRaw"]
+    assert raw["Primary:Kerberos"]["Credentials"][0]["Key"] == "bb" * 8  # legacy package kept (bytes -> hex)
+    assert raw["Packages"] == ["Kerberos-Newer-Keys", "Kerberos"]  # metadata kept
+    assert raw["Primary:Kerberos-Newer-Keys"]["DefaultIterationCount"] == 4096  # default iteration count kept
+    assert raw["Primary:WDigest"] == ["01" * 16]
+
+
+def test_raw_dump_is_always_present():
+    creds: dict = {}
+    merge_supplemental({"Primary:WDigest": [b"\x01" * 16]}, creds)
+    assert creds["supplementalCredentialsRaw"]["Primary:WDigest"] == ["01" * 16]

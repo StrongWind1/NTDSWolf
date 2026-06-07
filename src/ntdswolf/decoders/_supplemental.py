@@ -24,7 +24,8 @@ def merge_supplemental(supp: dict[str, Any], creds: dict[str, Any]) -> None:
     present, ``kerberosOld`` / ``kerberosOlder`` / ``kerberosService``.
     ``Primary:WDigest`` is a list of 16-byte MD5 hashes; ``Primary:CLEARTEXT`` is
     the reversibly encrypted password; ``Primary:NTLM-Strong-NTOWF`` is a 16-byte
-    value.
+    value. The complete decoded structure is also surfaced verbatim (bytes
+    hex-encoded) under ``supplementalCredentialsRaw`` so nothing is dropped.
 
     Args:
         supp: dissect's decoded supplementalCredentials dict.
@@ -59,6 +60,25 @@ def merge_supplemental(supp: dict[str, Any], creds: dict[str, Any]) -> None:
     ntowf = supp.get("Primary:NTLM-Strong-NTOWF")
     if isinstance(ntowf, bytes):
         creds["ntlmStrongNTOWF"] = ntowf.hex()
+
+    # True raw completeness: the entire decoded structure verbatim -- every
+    # package (incl. the legacy ``Primary:Kerberos`` and the ``Packages`` list),
+    # the default salt / iteration count, and all four key arrays. The curated
+    # fields above are derived views of this; nothing here is dropped.
+    creds["supplementalCredentialsRaw"] = _serialize_raw(supp)
+
+
+def _serialize_raw(value: object) -> object:
+    """Recursively convert a dissect-decoded value to a JSON-safe form (bytes -> hex), losing nothing."""
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value).hex()
+    if isinstance(value, dict):
+        return {str(k): _serialize_raw(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_serialize_raw(v) for v in value]
+    if isinstance(value, (str, int, float)) or value is None:
+        return value
+    return str(value)
 
 
 def _key_entries(creds_list: object, default_salt: str) -> list[dict[str, Any]]:

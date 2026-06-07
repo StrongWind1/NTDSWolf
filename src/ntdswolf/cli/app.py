@@ -157,13 +157,6 @@ def extract(
             help="Username field in hashcat output lines: 'sam' (sAMAccountName), 'upn', 'rid', or 'sid'.",
         ),
     ] = "sam",
-    raw: Annotated[
-        bool,
-        typer.Option(
-            "--raw",
-            help="Include all raw/unmapped attributes in output.",
-        ),
-    ] = False,
     # --- Verbosity ---
     verbose: Annotated[
         bool,
@@ -227,7 +220,6 @@ def extract(
         workers=workers,
         naming=naming,
         hashcat_username=hashcat_username,
-        raw=raw,
         verbose=verbose,
         quiet=quiet,
     )
