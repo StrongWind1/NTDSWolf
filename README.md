@@ -17,13 +17,14 @@
   <a href="https://strongwind1.github.io/NTDSWolf/reference/cli/">CLI Reference</a>
 </p>
 
-NTDSWolf parses Windows Active Directory NTDS.dit database files and extracts password hashes (NT/LM and history), Kerberos keys, WDigest hashes, and cleartext passwords, along with core object metadata for users, computers, groups, trusts, and domains. It produces structured output in multiple formats suitable for downstream analysis and credential cracking tools.
+NTDSWolf parses Windows Active Directory NTDS.dit database files with two goals: dump **everything** the directory holds -- every object's full attribute set -- and present all credential material correctly. It extracts and decrypts NT/LM hashes (and history), Kerberos keys, WDigest, cleartext passwords, trust keys, LAPS, and gMSA/dMSA managed passwords, and emits structured output (NDJSON/JSON/CSV) plus hashcat and pwdump cracking formats that are byte-identical to secretsdump.
 
 ## Why NTDSWolf?
 
-- **Pure Python** -- runs on Linux, macOS, and Windows with no .NET dependency.
+- **Dumps everything** -- every object carries an `_unmapped` field with all remaining stored and linked LDAP attributes, so nothing in the database is silently dropped.
+- **Correct credentials** -- NT/LM hashes and history, Kerberos keys (current, previous, and service), WDigest, cleartext, trust keys, LAPS, and gMSA/dMSA managed passwords; the hashcat and pwdump outputs are byte-identical to secretsdump.
+- **Pure Python** -- runs on Linux, macOS, and Windows with no .NET dependency and no impacket.
 - **Parses modern NTDS.dit** -- handles Windows Server 2008 through 2025, including the AES PEK era.
-- **Structured output** -- emits NDJSON, JSON, and CSV alongside hashcat and secretsdump-compatible pwdump cracking formats.
 - **Typed and tested** -- full type hints, strict linting, and a test suite covering the decryption and output paths.
 
 ## Installation
@@ -89,6 +90,8 @@ Options:
 
 ## Output Formats
 
+The structured formats (NDJSON, JSON, CSV) write one file per object class with the curated, decoded fields **plus** an `_unmapped` field carrying every remaining stored and linked LDAP attribute -- printable-ASCII values verbatim, anything else hex-encoded -- so nothing is dropped. The `hashcat` and `pwdump` formats emit only credential material for cracking.
+
 ### NDJSON (default)
 
 One JSON object per line, one file per object class. Compatible with `jq`, SIEM ingestion, and streaming parsers.
@@ -99,7 +102,7 @@ ntdswolf ntds.dit --system SYSTEM --format ndjson
 ```
 
 ```json
-{"_object_class": "user", "_dnt": 3802, "sAMAccountName": "Administrator", "objectSid": "S-1-5-21-...-500", "credentials": {"ntHash": "7facdc498ed1680c4fd1448319a8c04f", ...}}
+{"_object_class": "user", "_dnt": 3802, "sAMAccountName": "Administrator", "objectSid": "S-1-5-21-...-500", "credentials": {"ntHash": "7facdc498ed1680c4fd1448319a8c04f", ...}, "_unmapped": {"primaryGroupID": 513, "codePage": 0, "logonCount": 42, ...}}
 ```
 
 ### JSON
@@ -173,6 +176,7 @@ Administrator:aes256-cts-hmac-sha1-96:6c2d8...e1
 | WDigest hashes | `supplementalCredentials` | Supported |
 | Cleartext passwords | `supplementalCredentials` | Supported |
 | NTLM-Strong-NTOWF | `supplementalCredentials` | Supported |
+| Kerberos previous-password / service keys | `supplementalCredentials` | Supported |
 | Trust keys (RC4 + AES, both directions) | `trustAuthIncoming/Outgoing` | Supported |
 | LAPS v1 passwords | `ms-Mcs-AdmPwd` | Supported |
 | LAPS v2 cleartext / encrypted passwords | `msLAPS-Password` / `msLAPS-EncryptedPassword` | Supported |
@@ -181,9 +185,11 @@ Administrator:aes256-cts-hmac-sha1-96:6c2d8...e1
 | DPAPI backup keys (PVK + PEM) | `secret` objects | Wired (unverified) |
 | BitLocker recovery keys | `msFVE-RecoveryInformation` | Wired (unverified) |
 
+In the structured formats, Kerberos keys appear as the current set (`kerberos`) plus the previous-password and service sets (`kerberosOld` / `kerberosOlder` / `kerberosService`), and the complete decoded `supplementalCredentials` blob is preserved verbatim under `supplementalCredentialsRaw`.
+
 ### Object Types
 
-The pipeline decodes each object's common attributes and adds class-specific fields for the classes below. Other classes are emitted with their common attributes only.
+The pipeline decodes each object's common attributes and adds class-specific fields for the classes below. **Every** object -- whatever its class -- also carries an `_unmapped` field with all remaining stored and linked LDAP attributes, so no data is dropped.
 
 | Object Class | Class-specific fields extracted |
 |---|---|
@@ -193,7 +199,7 @@ The pipeline decodes each object's common attributes and adds class-specific fie
 | `trustedDomain` | trustPartner, flatName, securityIdentifier, trustType / trustDirection / trustAttributes, decrypted trust keys (RC4 + AES, both directions) |
 | `msDS-*ManagedServiceAccount` | NT hash + Kerberos keys; gMSA/dMSA also get the offline-derived `managedPassword` (self-verified against the NT hash) |
 | `domainDNS` | Functional level, password and lockout policy fields |
-| All others | Common attributes only (DN, objectGUID, objectSid, name, timestamps, isDeleted) |
+| All others | Common attributes (DN, objectGUID, objectSid, name, timestamps, isDeleted), plus every remaining attribute under `_unmapped` |
 
 ## Windows Server Compatibility
 

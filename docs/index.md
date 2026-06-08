@@ -2,15 +2,16 @@
 
 Offline NTDS.dit parser and credential extractor for Active Directory forensics, penetration testing, and security auditing.
 
-NTDSWolf parses Windows Active Directory NTDS.dit database files and extracts password hashes (NT/LM and history), Kerberos keys, WDigest hashes, and cleartext passwords, along with core object metadata for users, computers, groups, trusts, and domains. It produces structured output in multiple formats suitable for downstream analysis and credential cracking.
+NTDSWolf parses Windows Active Directory NTDS.dit database files with two goals: dump **everything** the directory holds — every object's full attribute set — and present all credential material correctly. It extracts and decrypts NT/LM hashes (and history), Kerberos keys, WDigest, cleartext passwords, trust keys, LAPS, and gMSA/dMSA managed passwords, and emits structured output (NDJSON/JSON/CSV) plus hashcat and pwdump cracking formats that are byte-identical to secretsdump.
 
 **[Read the Guide](guide/index.md)** · **[Install](getting-started/installation.md)** · **[CLI Reference](reference/cli.md)**
 
 ## Why NTDSWolf
 
-- **Pure Python** — runs on Linux, macOS, and Windows with no .NET dependency.
+- **Dumps everything** — every object carries an `_unmapped` field with all remaining stored and linked LDAP attributes, so nothing in the database is silently dropped.
+- **Correct credentials** — NT/LM hashes and history, Kerberos keys (current, previous, and service), WDigest, cleartext, trust keys, LAPS, and gMSA/dMSA managed passwords; the hashcat and pwdump outputs are byte-identical to secretsdump.
+- **Pure Python** — runs on Linux, macOS, and Windows with no .NET dependency and no impacket.
 - **Parses modern NTDS.dit** — handles Windows Server 2008 through 2025, including the AES PEK era.
-- **Structured output** — emits NDJSON, JSON, and CSV alongside hashcat and secretsdump-compatible pwdump cracking formats.
 - **Typed and tested** — full type hints, strict linting, and a test suite covering the decryption and output paths.
 
 ## Quick start
