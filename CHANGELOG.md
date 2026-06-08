@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The generic fallback decoder (used for object classes without a specialised decoder) no longer dumps a flat `as_dict()` at the top level. That leaked dissect's internal structural columns (`Obj`, `Time`, `CNT`, ...) because its column-exclusion list had the wrong casing, and it dropped every top-level attribute on objects with a single undecodable attribute (e.g. a schema `attributeID`). It now adds no class-specific fields and relies on the same robust `_unmapped` passthrough every class uses, so generic objects have the identical shape (common attributes + `_unmapped`) and dissect internals are never surfaced.
+
 ## [0.4.0] - 2026-06-07
 
 ### Added

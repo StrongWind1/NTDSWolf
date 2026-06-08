@@ -43,3 +43,18 @@ def test_passthrough_dumps_unmapped_attrs_without_duplicating_curated(tmp_path):
     assert "codePage" in unmapped
     # Curated attributes and dissect-internal structural columns are NOT re-emitted here.
     assert not ({"sAMAccountName", "objectClass", "nTSecurityDescriptor", "unicodePwd", "Pdnt", "Ncdnt", "Ancestors"} & set(unmapped))
+
+
+def test_generic_class_object_uses_passthrough_not_internal_columns(tmp_path):
+    # Generic (unmapped) classes go through the same passthrough as everything else:
+    # common attrs at top level, real attrs under _unmapped, and dissect's internal
+    # structural columns (Obj/Time/CNT/...) are not leaked at top level.
+    fx = _FIXTURES / "win2016_64"
+    if not (fx / "ntds.dit").is_file() or not (fx / "SYSTEM").is_file():
+        pytest.skip("aesedb fixture win2016_64 not present")
+    out = tmp_path / "out"
+    PipelineOrchestrator(ExtractionConfig(ntds_path=fx / "ntds.dit", system_path=fx / "SYSTEM", output_dir=out, output_format="ndjson", quiet=True)).run()
+    obj = json.loads((out / "msdfsr-subscription.ndjson").read_text().splitlines()[0])
+    assert not ({"Obj", "Time", "CNT", "AB_cnt", "RdnType", "Ncdnt", "Pdnt"} & set(obj))
+    assert obj["_unmapped"]
+    assert any(k.startswith("msDFSR-") for k in obj["_unmapped"])
