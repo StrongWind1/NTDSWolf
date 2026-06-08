@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-08
+
 ### Changed
 
 - The generic fallback decoder (used for object classes without a specialised decoder) no longer dumps a flat `as_dict()` at the top level. That leaked dissect's internal structural columns (`Obj`, `Time`, `CNT`, ...) because its column-exclusion list had the wrong casing, and it dropped every top-level attribute on objects with a single undecodable attribute (e.g. a schema `attributeID`). It now adds no class-specific fields and relies on the same robust `_unmapped` passthrough every class uses, so generic objects have the identical shape (common attributes + `_unmapped`) and dissect internals are never surfaced.
@@ -106,7 +108,8 @@ The codebase includes cryptographic modules for the items below, but they are no
 - DPAPI domain backup keys, LAPS v1/v2, BitLocker recovery keys, and Windows Hello / FIDO2 key credentials
 - gMSA managed passwords and KDS root keys (require MS-GKDI key derivation)
 
-[Unreleased]: https://github.com/StrongWind1/NTDSWolf/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/StrongWind1/NTDSWolf/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/StrongWind1/NTDSWolf/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/StrongWind1/NTDSWolf/releases/tag/v0.2.0
