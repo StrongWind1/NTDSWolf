@@ -311,5 +311,7 @@ def decode_flags(value: int, flag_class: type[IntFlag]) -> dict[str, int | list[
     """
     # Check each defined flag bit.  Skip zero-valued pseudo-members.
     # IntFlag iteration yields only single-bit members by default in Python 3.11+.
-    flags = [member.name for member in flag_class if member.value != 0 and (value & member.value) == member.value]
+    # Flag.name is typed str | None (composite members can be unnamed); canonical
+    # members always have a name, so the None check only narrows the type.
+    flags = [name for member in flag_class if (name := member.name) is not None and member.value != 0 and (value & member.value) == member.value]
     return {"value": value, "flags": flags}

@@ -84,8 +84,12 @@ _KEY_SOURCE_NAMES: dict[int, str] = {
     1: "AzureAD",  # Azure Active Directory
 }
 
+# A parsed key credential: tag name -> decoded value.  FILETIME tags and
+# KeyUsageRaw decode to ints; everything else is a hex/name string.
+KeyCredential = dict[str, int | str]
 
-def parse_key_credential(blob: bytes) -> dict | None:
+
+def parse_key_credential(blob: bytes) -> KeyCredential | None:
     """Parse one ``msDS-KeyCredentialLink`` KEYCREDENTIALLINK_BLOB.
 
     The blob is the binary half of the DN-with-binary link value (stored in the
@@ -114,7 +118,7 @@ def parse_key_credential(blob: bytes) -> dict | None:
     if len(blob) < DWORD_SIZE:
         return None
 
-    result: dict = {"Version": struct.unpack_from("<I", blob, 0)[0]}
+    result: KeyCredential = {"Version": struct.unpack_from("<I", blob, 0)[0]}
 
     # KEYCREDENTIALLINK_ENTRY records: Length (WORD) + Identifier (BYTE) + Value.
     pos = DWORD_SIZE
@@ -135,7 +139,7 @@ def parse_key_credential(blob: bytes) -> dict | None:
     return result
 
 
-def extract_key_credentials(obj: DissectObject) -> list[dict]:
+def extract_key_credentials(obj: DissectObject) -> list[KeyCredential]:
     """Read and parse every ``msDS-KeyCredentialLink`` blob bound to an object.
 
     The KEYCREDENTIALLINK_BLOBs are stored in the NTDS ``link_table``'s
@@ -176,7 +180,7 @@ def _read_key_credential_blobs(obj: DissectObject) -> list[bytes]:
     return blobs
 
 
-def _decode_key_id(data: bytes, result: dict) -> None:
+def _decode_key_id(data: bytes, result: KeyCredential) -> None:
     """Decode a KeyID tag (UTF-8 string, typically base64-encoded SHA-256)."""
     try:
         result["KeyID"] = data.decode("utf-8")
@@ -193,20 +197,20 @@ def _decode_dword_or_byte(data: bytes) -> int:
     return -1
 
 
-def _decode_key_usage(data: bytes, result: dict) -> None:
+def _decode_key_usage(data: bytes, result: KeyCredential) -> None:
     """Decode a KeyUsage tag (DWORD enum)."""
     usage_val = _decode_dword_or_byte(data)
     result["KeyUsage"] = _KEY_USAGE_NAMES.get(usage_val, f"Unknown({usage_val})")
     result["KeyUsageRaw"] = usage_val
 
 
-def _decode_key_source(data: bytes, result: dict) -> None:
+def _decode_key_source(data: bytes, result: KeyCredential) -> None:
     """Decode a KeySource tag (DWORD enum)."""
     source_val = _decode_dword_or_byte(data)
     result["KeySource"] = _KEY_SOURCE_NAMES.get(source_val, f"Unknown({source_val})")
 
 
-def _decode_device_id(data: bytes, result: dict) -> None:
+def _decode_device_id(data: bytes, result: KeyCredential) -> None:
     """Decode a DeviceId tag (16-byte GUID, big-endian per the KeyCredential blob)."""
     if len(data) == UUID_BYTE_LENGTH:
         try:
@@ -217,7 +221,7 @@ def _decode_device_id(data: bytes, result: dict) -> None:
         result["DeviceId"] = data.hex()
 
 
-def _decode_filetime(data: bytes, result: dict, key: str) -> None:
+def _decode_filetime(data: bytes, result: KeyCredential, key: str) -> None:
     """Decode a FILETIME tag (8-byte unsigned little-endian)."""
     if len(data) == FILETIME_BYTE_LENGTH:
         result[key] = struct.unpack_from("<Q", data, 0)[0]
@@ -225,32 +229,32 @@ def _decode_filetime(data: bytes, result: dict, key: str) -> None:
         result[key] = data.hex()
 
 
-def _decode_hex_tag(data: bytes, result: dict, key: str) -> None:
+def _decode_hex_tag(data: bytes, result: KeyCredential, key: str) -> None:
     """Store raw hex under *key*."""
     result[key] = data.hex()
 
 
-def _decode_approx_last_logon(data: bytes, result: dict) -> None:
+def _decode_approx_last_logon(data: bytes, result: KeyCredential) -> None:
     """Decode the KeyApproximateLastLogonTimeStamp tag."""
     _decode_filetime(data, result, "KeyApproximateLastLogonTimeStamp")
 
 
-def _decode_creation_time(data: bytes, result: dict) -> None:
+def _decode_creation_time(data: bytes, result: KeyCredential) -> None:
     """Decode the KeyCreationTime tag."""
     _decode_filetime(data, result, "KeyCreationTime")
 
 
-def _decode_key_hash(data: bytes, result: dict) -> None:
+def _decode_key_hash(data: bytes, result: KeyCredential) -> None:
     """Decode the KeyHash tag."""
     _decode_hex_tag(data, result, "KeyHash")
 
 
-def _decode_key_material(data: bytes, result: dict) -> None:
+def _decode_key_material(data: bytes, result: KeyCredential) -> None:
     """Decode the KeyMaterial tag."""
     _decode_hex_tag(data, result, "KeyMaterial")
 
 
-def _decode_custom_key_info(data: bytes, result: dict) -> None:
+def _decode_custom_key_info(data: bytes, result: KeyCredential) -> None:
     """Decode the CustomKeyInformation tag."""
     _decode_hex_tag(data, result, "CustomKeyInformation")
 
@@ -268,7 +272,7 @@ _TAG_DECODERS: dict[int, Callable[..., None]] = {
 }
 
 
-def _decode_tag(tag: int, data: bytes, result: dict) -> None:
+def _decode_tag(tag: int, data: bytes, result: KeyCredential) -> None:
     """Decode a single TLV entry and add it to *result*."""
     decoder = _TAG_DECODERS.get(tag)
     if decoder is not None:

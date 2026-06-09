@@ -38,7 +38,7 @@ _LAPS_V2_HEADER_SIZE: int = 16
 _LAPS_V2_LENGTH_OFFSET: int = 8
 
 
-def parse_laps_cleartext(value: str | bytes) -> dict | None:
+def parse_laps_cleartext(value: str | bytes) -> dict[str, str | None] | None:
     """Parse a cleartext Windows LAPS ``msLAPS-Password`` JSON envelope.
 
     Windows LAPS with encryption disabled stores the password as a small JSON
@@ -67,7 +67,7 @@ def parse_laps_cleartext(value: str | bytes) -> dict | None:
     return {"username": data.get("n"), "password": data.get("p"), "timestamp": data.get("t")}
 
 
-def extract_laps_v1(value: bytes) -> dict:
+def extract_laps_v1(value: bytes) -> dict[str, str]:
     """Decode a LAPS v1 plaintext password from ``ms-Mcs-AdmPwd``.
 
     The value is a simple UTF-16LE-encoded string with no encryption.
@@ -93,7 +93,7 @@ def extract_laps_v1(value: bytes) -> dict:
     return {"password": password}
 
 
-def extract_laps_v2(encrypted: bytes, cache: KeyCache | None = None) -> dict | None:
+def extract_laps_v2(encrypted: bytes, cache: KeyCache | None = None) -> dict[str, str | None] | None:
     """Decrypt a LAPS v2 encrypted password from ``msLAPS-EncryptedPassword``.
 
     The attribute is a small 16-byte header (split FILETIME, encrypted-buffer

@@ -57,6 +57,10 @@ _AUTH_TYPE_NAMES: dict[int, str] = {
     TRUST_AUTH_TYPE_VERSION: "TRUST_AUTH_TYPE_VERSION",
 }
 
+# One parsed LSAPR_AUTH_INFORMATION entry: lastUpdateTime is an int FILETIME;
+# the auth type name, password/hash hex, and derived keys are strings.
+TrustAuthEntry = dict[str, int | str]
+
 # Header: Count + CurrentAuthInfoOffset + PreviousAuthInfoOffset = 3 DWORDs.
 _TRUST_AUTH_HEADER_SIZE: int = 12
 # LSAPR_AUTH_INFORMATION fixed header: LastUpdateTime (8) + AuthType (4) + AuthInfoLength (4).
@@ -65,7 +69,7 @@ _AUTH_INFO_HEADER_SIZE: int = 16
 _NT4OWF_LENGTH: int = 16
 
 
-def parse_trust_auth(decrypted: bytes, salt: str) -> dict:
+def parse_trust_auth(decrypted: bytes, salt: str) -> dict[str, int | list[TrustAuthEntry]]:
     """Parse a (dissect-decrypted) trust auth blob and derive Kerberos keys.
 
     Args:
@@ -94,9 +98,9 @@ def parse_trust_auth(decrypted: bytes, salt: str) -> dict:
     }
 
 
-def _parse_auth_info_array(data: bytes, salt: str) -> list[dict]:
+def _parse_auth_info_array(data: bytes, salt: str) -> list[TrustAuthEntry]:
     """Parse a sequence of LSAPR_AUTH_INFORMATION entries."""
-    entries: list[dict] = []
+    entries: list[TrustAuthEntry] = []
     pos = 0
     while pos + _AUTH_INFO_HEADER_SIZE <= len(data):
         last_update_time, auth_type, auth_info_length = struct.unpack_from("<QII", data, pos)
@@ -110,9 +114,9 @@ def _parse_auth_info_array(data: bytes, salt: str) -> list[dict]:
     return entries
 
 
-def _build_auth_entry(auth_type: int, auth_info: bytes, last_update_time: int, salt: str) -> dict:
+def _build_auth_entry(auth_type: int, auth_info: bytes, last_update_time: int, salt: str) -> TrustAuthEntry:
     """Build one LSAPR_AUTH_INFORMATION entry, deriving keys for CLEAR types."""
-    entry: dict = {
+    entry: TrustAuthEntry = {
         "lastUpdateTime": last_update_time,
         "authType": _AUTH_TYPE_NAMES.get(auth_type, f"UNKNOWN({auth_type})"),
     }
@@ -124,7 +128,7 @@ def _build_auth_entry(auth_type: int, auth_info: bytes, last_update_time: int, s
     return entry
 
 
-def _derive_trust_keys(password_bytes: bytes, salt: str) -> dict:
+def _derive_trust_keys(password_bytes: bytes, salt: str) -> dict[str, str]:
     """Derive the trust account's Kerberos keys from its cleartext password.
 
     RC4-HMAC is ``MD4(password_bytes)`` (== the trust account's NT hash).  AES
@@ -136,7 +140,7 @@ def _derive_trust_keys(password_bytes: bytes, salt: str) -> dict:
 
     Per [MS-KILE] / [MS-ADTS] section 6.1.6.9.1.
     """
-    result: dict = {}
+    result: dict[str, str] = {}
 
     md4 = MD4.new()  # noqa: S303 -- MD4 is the RC4-HMAC / NTOWF construction mandated by [MS-KILE]
     md4.update(password_bytes)
