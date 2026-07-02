@@ -1,34 +1,33 @@
 ---
 name: Bug report
-about: Report a bug in NTDSWolf
+about: Report a bug or unexpected behavior
 title: ""
 labels: bug
 assignees: ""
 ---
 
-## Command
+**Describe the bug**
+A clear description of what happened.
 
-The exact command you ran:
+**Command**
+The exact `ntdswolf` command you ran (redact sensitive values):
 
 ```bash
-
+ntdswolf ...
 ```
 
-## Output
-
-What happened (paste the full output):
-
-```
+**Output**
+Paste the full output (use `-vvv` for trace-level detail where supported):
 
 ```
+...
+```
 
-## Expected behavior
+**Expected behavior**
+What you expected to happen.
 
-What you expected to happen instead.
-
-## Environment
-
-- OS: (e.g., Kali 2025.1, Ubuntu 24.04, macOS 15)
-- Python version: (output of `python3 --version`)
-- NTDSWolf version: (output of `ntdswolf --version`)
-- Source NTDS.dit Windows Server version: (e.g., Server 2022, Server 2025)
+**Environment**
+- OS: [e.g. Kali 2025.1, Ubuntu 24.04]
+- Python version: [e.g. 3.12.3]
+- NTDSWolf version: [e.g. 1.0.0]
+- Install method: [e.g. uv, pipx, pip]
