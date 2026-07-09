@@ -42,9 +42,16 @@ Administrator:500:aad3b435b51404eeaad3b435b51404ee:7facdc498ed1680c4fd1448319a8c
 
 ## Installation
 
-Install with [uv](https://docs.astral.sh/uv/):
+Install from [PyPI](https://pypi.org/project/ntdswolf/):
 
-```bash
+```sh
+uv tool install ntdswolf        # recommended
+pip install ntdswolf             # or with pip
+```
+
+Or install from source:
+
+```sh
 uv tool install git+https://github.com/StrongWind1/NTDSWolf
 ```
 
