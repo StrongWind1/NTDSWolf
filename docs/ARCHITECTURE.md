@@ -1,6 +1,6 @@
 # NTDSWolf -- Architecture Document
 
-> **Historical design document (2025-05-22).** This captures the original v0.1.0 architecture. The implementation has since evolved -- the decoder registry and worker pool are live, Kerberos/WDigest/cleartext extract via dissect, and output is cross-validated against impacket. For the current state and remaining work, see [`ROADMAP.md`](../ROADMAP.md).
+> **Historical design document (2025-05-22).** This captures the original v0.1.0 architecture. The implementation has since evolved: the decoder registry and worker pool are live, Kerberos/WDigest/cleartext extract via dissect, and output is cross-validated as byte-identical to secretsdump. See the [CHANGELOG](../CHANGELOG.md) for the current state.
 
 **Version:** 0.1.0
 **Date:** 2025-05-22

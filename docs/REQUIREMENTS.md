@@ -1,6 +1,6 @@
 # NTDSWolf -- Requirements Specification
 
-> **Historical design document (2025-05-22).** This captures the original v0.1.0 requirements. For the current state of the implementation and remaining work, see [`ROADMAP.md`](../ROADMAP.md).
+> **Historical design document (2025-05-22).** This captures the original v0.1.0 requirements. See the [CHANGELOG](../CHANGELOG.md) for the current state.
 
 **Version:** 0.1.0
 **Date:** 2025-05-22

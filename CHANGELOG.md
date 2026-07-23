@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-08
+
+### Changed
+
+- Activated PyPI publishing workflow; NTDSWolf is now installable via `uv tool install ntdswolf`.
+- Added PyPI badge and install instructions to docs.
+- Removed CONTRIBUTING.md and CODE_OF_CONDUCT.md (project accepts contributions via pull request without a formal contributor guide).
+
+## [0.5.0] - 2026-07-02
+
+### Fixed
+
+- Parameterized bare `dict` type annotations and narrowed `Flag.name` return type for ty 0.0.46 compatibility.
+
+### Changed
+
+- Standardized CI/CD workflows, scaffolding, and release tooling across all StrongWind1 projects.
+- Standardized README with usage example, disclaimer, and related-tools section.
+- Documented the `_unmapped` raw passthrough in the README and documentation homepage.
+- Set LICENSE copyright owner.
+
 ## [0.4.1] - 2026-06-08
 
 ### Changed
@@ -108,7 +129,9 @@ The codebase includes cryptographic modules for the items below, but they are no
 - DPAPI domain backup keys, LAPS v1/v2, BitLocker recovery keys, and Windows Hello / FIDO2 key credentials
 - gMSA managed passwords and KDS root keys (require MS-GKDI key derivation)
 
-[Unreleased]: https://github.com/StrongWind1/NTDSWolf/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/StrongWind1/NTDSWolf/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/StrongWind1/NTDSWolf/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/StrongWind1/NTDSWolf/compare/v0.2.0...v0.3.0

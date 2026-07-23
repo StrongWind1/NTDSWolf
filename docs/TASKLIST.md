@@ -1,6 +1,6 @@
 # NTDSWolf -- Implementation Tasklist
 
-> **Superseded for remaining work by [`ROADMAP.md`](../ROADMAP.md) (2026-06-01).** This is the original from-scratch build plan. The implementation diverged from it: much of the `crypto/` and `decoders/` code was written but never wired into the pipeline, which currently extracts only NT/LM hashes plus basic metadata. `ROADMAP.md` is the grounded, current-state plan for completing the tool.
+> **Superseded (2026-06-01).** This is the original from-scratch build plan. The implementation diverged from it and is now feature-complete: all `crypto/` and `decoders/` code is wired into the pipeline, output is byte-identical to secretsdump, and the `_unmapped` passthrough ensures nothing is dropped. See the [CHANGELOG](../CHANGELOG.md) for the current state.
 
 **Version:** 0.1.0
 **Date:** 2025-05-22
