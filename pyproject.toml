@@ -79,6 +79,12 @@ ignore = [
 "tests/**" = ["D", "S101", "S105", "S106", "ANN", "PLR2004", "SLF001", "N802"]
 "ref/**" = ["ALL"]
 
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "(?i)# SPDX-License-Identifier"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ty.environment]
 python-version = "3.11"
 root = ["src"]

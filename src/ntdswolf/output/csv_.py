@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CSV output writer -- flat CSV with automatic header discovery and nested-dict flattening."""
 
 from __future__ import annotations

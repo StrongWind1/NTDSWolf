@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Multiprocessing worker pool for parallel object decoding (Phase 4).
 
 dissect Objects cannot cross process boundaries (they hold a live database

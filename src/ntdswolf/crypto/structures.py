@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Binary wire format structures for NTDS.dit credential decryption.
 
 All structures are defined using dissect.cstruct with C-like definitions.

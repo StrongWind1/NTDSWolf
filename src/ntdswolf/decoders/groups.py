@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for group objectClass.
 
 Groups are security principals that aggregate other principals via the

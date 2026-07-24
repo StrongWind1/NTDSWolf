@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for domainDNS objectClass.
 
 The domainDNS object is the root of each AD domain naming context and

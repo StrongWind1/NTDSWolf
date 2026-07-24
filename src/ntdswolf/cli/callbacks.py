@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """CLI argument validation callbacks for typer.
 
 These functions are used as ``callback`` parameters on typer options to

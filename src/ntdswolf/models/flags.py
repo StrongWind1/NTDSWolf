@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """IntFlag and IntEnum definitions for Active Directory attribute values.
 
 Every enumeration corresponds to a specific field in the AD schema and is

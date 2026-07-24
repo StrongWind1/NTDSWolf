@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for msDS-GroupManagedServiceAccount objectClass.
 
 Group Managed Service Accounts (gMSAs) have their passwords automatically

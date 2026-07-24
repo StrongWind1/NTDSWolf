@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 r"""Extract the SYSTEM boot key (SysKey) from a Windows SYSTEM registry hive.
 
 The boot key is a 16-byte value derived from the class names of four registry

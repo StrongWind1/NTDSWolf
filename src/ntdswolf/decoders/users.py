@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for user and computer objectClasses.
 
 Handles extraction of identity attributes, timestamps, group membership

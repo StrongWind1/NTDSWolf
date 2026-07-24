@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 r"""Hashcat-compatible hash output writer.
 
 For every object class that carries NT/LM hashes, this writes ``username:hash``

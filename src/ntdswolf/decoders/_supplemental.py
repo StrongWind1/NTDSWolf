@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Surface dissect's already-decrypted ``supplementalCredentials`` into creds.
 
 dissect.database removes the PEK layer from ``supplementalCredentials`` and

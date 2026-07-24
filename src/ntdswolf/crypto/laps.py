@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """LAPS (Local Administrator Password Solution) password extraction.
 
 Two generations of LAPS exist:

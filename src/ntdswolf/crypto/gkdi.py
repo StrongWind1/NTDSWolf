@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """MS-GKDI / DPAPI-NG offline decryption for LAPS v2 encrypted passwords.
 
 LAPS v2 stores ``msLAPS-EncryptedPassword`` as a small timestamp header followed

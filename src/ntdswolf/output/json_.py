@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Pretty-printed JSON array output writer -- single file per object class."""
 
 from __future__ import annotations

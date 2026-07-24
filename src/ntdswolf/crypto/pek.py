@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Per-attribute PEK secret decryption ([MS-SAMR] section 2.2.11.1).
 
 The PEK (Password Encryption Key) list protects every encrypted attribute value

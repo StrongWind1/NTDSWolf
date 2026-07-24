@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """NTDSWolf CLI application -- typer entry point.
 
 This module defines the main typer application and the ``ntdswolf`` command.

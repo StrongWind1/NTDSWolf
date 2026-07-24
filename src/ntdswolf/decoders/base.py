@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Base decoder and context for transforming raw NTDS.dit records into dicts.
 
 Every decoder subclass inherits from BaseDecoder, which implements the

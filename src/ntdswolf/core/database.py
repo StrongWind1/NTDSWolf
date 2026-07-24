@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """NTDSDatabase -- thin wrapper around dissect.database NTDS for consistent access.
 
 This module exists to isolate all direct interactions with the dissect.database

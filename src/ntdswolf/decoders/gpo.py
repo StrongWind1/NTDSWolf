@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for groupPolicyContainer objectClass.
 
 GPO objects represent Group Policy Objects stored in AD.  Each GPO has a

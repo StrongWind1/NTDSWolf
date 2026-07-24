@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder registry mapping objectClass names to decoder instances.
 
 The registry is the central dispatch table used by the extraction pipeline

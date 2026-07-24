@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """NTDSWolf -- Offline NTDS.dit parser and credential extractor."""
 
 from __future__ import annotations

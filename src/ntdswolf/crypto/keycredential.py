@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Parse ``msDS-KeyCredentialLink`` binary structures (WHfB / Device Registration).
 
 The ``msDS-KeyCredentialLink`` attribute stores key credential information

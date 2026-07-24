@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 r"""Shared helpers for the credential-file output writers (hashcat, pwdump).
 
 ``account_username`` resolves an object's logon name identically for both hash

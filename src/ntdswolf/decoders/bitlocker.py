@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for msFVE-RecoveryInformation objectClass.
 
 BitLocker recovery keys are stored as child objects under the computer

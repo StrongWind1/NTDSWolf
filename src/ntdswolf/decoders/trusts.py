@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for trustedDomain objectClass.
 
 Trust objects represent inter-domain or inter-forest trust relationships.

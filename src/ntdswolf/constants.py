@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Well-known constants used across NTDSWolf.
 
 This module centralizes all protocol constants, magic values, and well-known

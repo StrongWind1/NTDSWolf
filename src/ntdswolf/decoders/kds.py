@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoder for msKds-ProvRootKey objectClass.
 
 KDS root keys are the cryptographic foundation of the Group Key

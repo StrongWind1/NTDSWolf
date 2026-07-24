@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """PipelineOrchestrator -- coordinates the three extraction phases.
 
 The extraction pipeline has three sequential phases:

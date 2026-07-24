@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Trust relationship credential parsing and Kerberos key derivation.
 
 AD inter-domain/forest trust objects store authentication credentials in the

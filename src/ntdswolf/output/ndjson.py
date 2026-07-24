@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Newline-delimited JSON (NDJSON) output writer -- one JSON object per line."""
 
 from __future__ import annotations

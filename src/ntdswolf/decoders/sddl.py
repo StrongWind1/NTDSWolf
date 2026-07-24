@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Serialize a dissect security descriptor to an SDDL string.
 
 Per [MS-DTYP] section 2.5.1 (Security Descriptor String Format). dissect parses

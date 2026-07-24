@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Decoders subpackage -- object extraction from raw ESE records.
 
 Each decoder transforms dissect.database Object instances into flat

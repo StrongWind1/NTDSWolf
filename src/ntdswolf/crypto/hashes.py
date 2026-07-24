@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """NT and LM hash decryption from NTDS.dit encrypted attribute blobs.
 
 After the PEK layer is removed (see ``pek.py``), NT and LM hashes still

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Generic fallback decoder for unknown or unregistered object classes.
 
 When the DecoderRegistry encounters an objectClass it has no specialised

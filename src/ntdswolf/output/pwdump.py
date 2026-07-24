@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 r"""secretsdump-compatible "newer pwdump" output writer.
 
 Produces files byte-compatible with ``impacket-secretsdump -outputfile``:

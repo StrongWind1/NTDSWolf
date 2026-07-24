@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """RFC 3961 / RFC 3962 Kerberos AES string-to-key.
 
 Derives the AES-128 and AES-256 Kerberos long-term keys from a cleartext
