@@ -337,10 +337,10 @@ class NTDSDatabase:
     schema statistics, and worker-friendly serialization.
     """
 
-    ntds: NTDS                          # dissect.database NTDS instance
-    pek_list: PEKList | None            # Decrypted PEK array (None if no boot key)
-    schema_stats: SchemaStats           # Attribute/class counts for reporting
-    db_path: Path                       # Path to ntds.dit for worker initialization
+    ntds: NTDS  # dissect.database NTDS instance
+    pek_list: PEKList | None  # Decrypted PEK array (None if no boot key)
+    schema_stats: SchemaStats  # Attribute/class counts for reporting
+    db_path: Path  # Path to ntds.dit for worker initialization
 
     def open(path: Path) -> NTDSDatabase: ...
     def unlock(bootkey: bytes) -> None: ...
@@ -363,7 +363,7 @@ class PipelineOrchestrator:
     """
 
     db: NTDSDatabase
-    config: ExtractionConfig            # CLI args as a frozen dataclass
+    config: ExtractionConfig  # CLI args as a frozen dataclass
     link_resolver: LinkResolver
     dn_cache: dict[int, str]
     output_manager: OutputManager
@@ -385,13 +385,17 @@ class LinkResolver(Protocol):
     def back_links(self, dnt: int) -> dict[str, list[ResolvedLink]]: ...
     def close(self) -> None: ...
 
+
 class MemoryLinkResolver:
     """In-memory link resolution for databases with < 5M links."""
+
     _forward: dict[int, list[LinkRecord]]
     _backward: dict[int, list[LinkRecord]]
 
+
 class SqliteLinkResolver:
     """SQLite-backed link resolution for very large databases."""
+
     _db_path: Path
     _conn: sqlite3.Connection
 ```
@@ -459,6 +463,7 @@ Frozen dataclasses representing extracted AD objects:
 @dataclass(frozen=True)
 class ADObject:
     """Base class for all extracted AD objects."""
+
     dn: str
     dnt: int
     object_class: str
@@ -467,11 +472,13 @@ class ADObject:
     when_created: datetime | None
     when_changed: datetime | None
     is_deleted: bool
-    raw_attributes: dict[str, Any]     # All non-decoded attributes
+    raw_attributes: dict[str, Any]  # All non-decoded attributes
+
 
 @dataclass(frozen=True)
 class ADUser(ADObject):
     """Extracted AD user account."""
+
     sam_account_name: str
     user_principal_name: str | None
     display_name: str | None
@@ -481,13 +488,15 @@ class ADUser(ADObject):
     account_expires: datetime | None
     admin_count: int | None
     credentials: UserCredentials | None
-    member_of: list[str]               # List of group DNs
-    sid_history: list[str]             # List of SID strings
+    member_of: list[str]  # List of group DNs
+    sid_history: list[str]  # List of SID strings
     replication_metadata: list[ReplicationMetadataEntry] | None
+
 
 @dataclass(frozen=True)
 class ADComputer(ADObject):
     """Extracted AD computer account."""
+
     sam_account_name: str
     dns_host_name: str | None
     operating_system: str | None
@@ -496,20 +505,24 @@ class ADComputer(ADObject):
     credentials: UserCredentials | None
     laps_password: LAPSPassword | None
     allowed_to_delegate_to: list[str]
-    allowed_to_act_on_behalf: list[str]   # SIDs from msDS-AllowedToActOnBehalfOfOtherIdentity
+    allowed_to_act_on_behalf: list[str]  # SIDs from msDS-AllowedToActOnBehalfOfOtherIdentity
+
 
 @dataclass(frozen=True)
 class ADGroup(ADObject):
     """Extracted AD security or distribution group."""
+
     sam_account_name: str
     group_type: GroupType
-    members: list[str]                 # List of member DNs
-    member_of: list[str]               # List of parent group DNs
+    members: list[str]  # List of member DNs
+    member_of: list[str]  # List of parent group DNs
     admin_count: int | None
+
 
 @dataclass(frozen=True)
 class ADTrust(ADObject):
     """Extracted AD trust relationship."""
+
     trust_partner: str
     trust_type: TrustType
     trust_direction: TrustDirection
@@ -525,32 +538,40 @@ class ADTrust(ADObject):
 @dataclass(frozen=True)
 class NTHash:
     """NT (NTLM) password hash -- MD4 of UTF-16LE password."""
-    hash: bytes                        # 16 bytes
+
+    hash: bytes  # 16 bytes
+
     def hex(self) -> str: ...
+
 
 @dataclass(frozen=True)
 class KerberosKey:
     """Single Kerberos encryption key from supplementalCredentials."""
-    key_type: KerberosKeyType          # IntEnum: AES256, AES128, RC4, DES
+
+    key_type: KerberosKeyType  # IntEnum: AES256, AES128, RC4, DES
     key_value: bytes
     salt: str
     iteration_count: int
 
+
 @dataclass(frozen=True)
 class UserCredentials:
     """All credential material for a user or computer account."""
+
     nt_hash: NTHash | None
     lm_hash: NTHash | None
     nt_history: list[NTHash]
     lm_history: list[NTHash]
     kerberos_keys: list[KerberosKey]
-    wdigest_hashes: list[bytes]        # 29 × 16-byte MD5 hashes
+    wdigest_hashes: list[bytes]  # 29 × 16-byte MD5 hashes
     cleartext_password: str | None
     ntlm_strong_ntowf: NTHash | None
+
 
 @dataclass(frozen=True)
 class TrustCredentials:
     """Decrypted trust authentication info."""
+
     cleartext_password: str | None
     nt4owf_hash: bytes | None
     rc4_hmac_key: bytes | None
@@ -558,13 +579,15 @@ class TrustCredentials:
     aes256_key: bytes | None
     previous: TrustCredentials | None  # Previous auth info (key rotation)
 
+
 @dataclass(frozen=True)
 class LAPSPassword:
     """LAPS password (v1 plaintext or v2 decrypted)."""
-    version: int                       # 1 or 2
+
+    version: int  # 1 or 2
     password: str
     expiration: datetime | None
-    account_name: str | None           # LAPS v2 managed account name
+    account_name: str | None  # LAPS v2 managed account name
 ```
 
 #### `models/flags.py` -- Enumerations and Flags
@@ -574,47 +597,54 @@ Every flag and enumeration is defined as an `IntFlag` or `IntEnum` with the spec
 ```python
 class UserAccountControl(IntFlag):
     """Account control flags. Per [MS-ADTS] §2.2.16."""
-    SCRIPT                                 = 0x0000_0001
-    ACCOUNTDISABLE                         = 0x0000_0002
-    HOMEDIR_REQUIRED                       = 0x0000_0008
-    LOCKOUT                                = 0x0000_0010
-    PASSWD_NOTREQD                         = 0x0000_0020
-    PASSWD_CANT_CHANGE                     = 0x0000_0040
-    ENCRYPTED_TEXT_PASSWORD_ALLOWED         = 0x0000_0080
-    NORMAL_ACCOUNT                         = 0x0000_0200
-    INTERDOMAIN_TRUST_ACCOUNT              = 0x0000_0800
-    WORKSTATION_TRUST_ACCOUNT              = 0x0000_1000
-    SERVER_TRUST_ACCOUNT                   = 0x0000_2000
-    DONT_EXPIRE_PASSWD                     = 0x0001_0000
-    MNS_LOGON_ACCOUNT                      = 0x0002_0000
-    SMARTCARD_REQUIRED                     = 0x0004_0000
-    TRUSTED_FOR_DELEGATION                 = 0x0008_0000
-    NOT_DELEGATED                          = 0x0010_0000
-    USE_DES_KEY_ONLY                       = 0x0020_0000
-    DONT_REQUIRE_PREAUTH                   = 0x0040_0000
-    PASSWORD_EXPIRED                       = 0x0080_0000
+
+    SCRIPT = 0x0000_0001
+    ACCOUNTDISABLE = 0x0000_0002
+    HOMEDIR_REQUIRED = 0x0000_0008
+    LOCKOUT = 0x0000_0010
+    PASSWD_NOTREQD = 0x0000_0020
+    PASSWD_CANT_CHANGE = 0x0000_0040
+    ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x0000_0080
+    NORMAL_ACCOUNT = 0x0000_0200
+    INTERDOMAIN_TRUST_ACCOUNT = 0x0000_0800
+    WORKSTATION_TRUST_ACCOUNT = 0x0000_1000
+    SERVER_TRUST_ACCOUNT = 0x0000_2000
+    DONT_EXPIRE_PASSWD = 0x0001_0000
+    MNS_LOGON_ACCOUNT = 0x0002_0000
+    SMARTCARD_REQUIRED = 0x0004_0000
+    TRUSTED_FOR_DELEGATION = 0x0008_0000
+    NOT_DELEGATED = 0x0010_0000
+    USE_DES_KEY_ONLY = 0x0020_0000
+    DONT_REQUIRE_PREAUTH = 0x0040_0000
+    PASSWORD_EXPIRED = 0x0080_0000
     TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x0100_0000
-    PARTIAL_SECRETS_ACCOUNT                = 0x0400_0000
+    PARTIAL_SECRETS_ACCOUNT = 0x0400_0000
+
 
 class GroupType(IntFlag):
     """Group type flags. Per [MS-ADTS] §2.2.12."""
-    GLOBAL_GROUP        = 0x0000_0002
-    DOMAIN_LOCAL_GROUP  = 0x0000_0004
-    UNIVERSAL_GROUP     = 0x0000_0008
-    SECURITY_ENABLED    = 0x8000_0000
+
+    GLOBAL_GROUP = 0x0000_0002
+    DOMAIN_LOCAL_GROUP = 0x0000_0004
+    UNIVERSAL_GROUP = 0x0000_0008
+    SECURITY_ENABLED = 0x8000_0000
+
 
 class TrustType(IntEnum):
     """Trust type values. Per [MS-ADTS] §6.1.6.9.1."""
-    DOWNLEVEL  = 1   # Windows NT
-    UPLEVEL    = 2   # Active Directory
-    MIT        = 3   # Non-Windows Kerberos
-    DCE        = 4   # DCE realm
+
+    DOWNLEVEL = 1  # Windows NT
+    UPLEVEL = 2  # Active Directory
+    MIT = 3  # Non-Windows Kerberos
+    DCE = 4  # DCE realm
+
 
 class TrustDirection(IntFlag):
     """Trust direction flags. Per [MS-ADTS] §6.1.6.9.1."""
-    DISABLED  = 0
-    INBOUND   = 1
-    OUTBOUND  = 2
+
+    DISABLED = 0
+    INBOUND = 1
+    OUTBOUND = 2
     BIDIRECTIONAL = 3
 ```
 
@@ -656,7 +686,7 @@ GenericDecoder(BaseDecoder)
 ```python
 registry = DecoderRegistry()
 registry.register("user", UserDecoder)
-registry.register("computer", UserDecoder)       # Computers are users with extra attrs
+registry.register("computer", UserDecoder)  # Computers are users with extra attrs
 registry.register("group", GroupDecoder)
 registry.register("trustedDomain", TrustDecoder)
 registry.register("domainDNS", DomainDecoder)
@@ -674,12 +704,15 @@ Output writers implement a common protocol and are selected by the `--format` fl
 ```python
 class OutputWriter(Protocol):
     """Writes extracted objects to a specific output format."""
+
     def open(self, output_dir: Path, object_class: str) -> None: ...
     def write(self, obj: ADObject) -> None: ...
     def close(self) -> None: ...
 
+
 class OutputManager:
     """Dispatches objects to per-class output writers."""
+
     def __init__(self, format: str, output_dir: Path, extract_classes: set[str]): ...
     def write(self, obj: ADObject) -> None: ...
     def finalize(self) -> OutputStats: ...

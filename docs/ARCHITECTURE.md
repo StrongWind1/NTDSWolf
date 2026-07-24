@@ -322,14 +322,14 @@ sequenceDiagram
 ```python
 @dataclass(frozen=True)
 class ResolvedLink:
-    attribute_name: str       # LDAP name of the link attribute
-    target_dnt: int           # DNT of the linked object
-    target_dn: str            # Full DN of the linked object
-    is_deleted: bool          # link_deltime is set
+    attribute_name: str  # LDAP name of the link attribute
+    target_dnt: int  # DNT of the linked object
+    target_dn: str  # Full DN of the linked object
+    is_deleted: bool  # link_deltime is set
     deleted_time: datetime | None
-    is_deactivated: bool      # link_deactivetime is set
+    is_deactivated: bool  # link_deactivetime is set
     deactivated_time: datetime | None
-    link_data: bytes | None   # Extra data (non-null for special links)
+    link_data: bytes | None  # Extra data (non-null for special links)
 ```
 
 ### 4.3 DecoderRegistry + BaseDecoder
@@ -347,15 +347,15 @@ class ResolvedLink:
 ```python
 @dataclass(frozen=True)
 class DecoderContext:
-    schema: Schema                # Attribute lookups
-    pek_list: PEKList | None      # None = no-decrypt mode
+    schema: Schema  # Attribute lookups
+    pek_list: PEKList | None  # None = no-decrypt mode
     link_resolver: LinkResolver
     dn_cache: dict[int, str]
     sd_cache: dict[int, bytes]
     include_deleted: bool
     include_raw: bool
-    naming_mode: str              # "ldap" or "cn"
-    errors: list[str]             # Mutable: decoders append error messages
+    naming_mode: str  # "ldap" or "cn"
+    errors: list[str]  # Mutable: decoders append error messages
 ```
 
 ### 4.4 OutputWriter + OutputManager
