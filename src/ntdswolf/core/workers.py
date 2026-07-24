@@ -83,7 +83,7 @@ def _decode_dnt_batch(dnts: list[int]) -> list[dict[str, Any]]:
                 # _picklable runs inside the catch so a value whose __str__
                 # touches the forked file handle can't escape and crash the pool.
                 decoded.append(_picklable(result))
-        except Exception:  # noqa: BLE001 -- worker boundary: one bad object must not crash the pool, and escaping dissect errors can hold unpicklable file handles
+        except Exception:
             logger.debug("Worker failed to decode DNT %s", dnt, exc_info=True)
             continue
     return decoded

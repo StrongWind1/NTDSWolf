@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/pwdump.py -- secretsdump-format .ntds / .ntds.kerberos / .ntds.cleartext."""
 
 from __future__ import annotations

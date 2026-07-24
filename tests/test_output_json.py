@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/json_.py -- pretty-printed JSON array output."""
 
 from __future__ import annotations

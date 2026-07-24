@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for decoders/sddl.py -- security descriptor to SDDL serialization.
 
 Expected strings are hand-derived from [MS-DTYP] section 2.5.1 so they validate

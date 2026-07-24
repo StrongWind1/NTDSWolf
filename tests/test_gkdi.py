@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/gkdi.py gMSA/dMSA managed-password derivation.
 
 A synthetic KDS root key drives a deterministic derivation (no real lab key

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for cli/callbacks.py -- argument validation.
 
 The --extract tests pin down the plural-name fix: decoders emit singular

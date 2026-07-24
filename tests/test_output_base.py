@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/base.py -- OutputManager dispatch and class filtering.
 
 The extract-class filter test is the output half of the --extract fix: given the

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/bootkey.py -- boot key parsing, detection, resolution."""
 
 from __future__ import annotations

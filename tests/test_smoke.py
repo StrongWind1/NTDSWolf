@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Smoke tests: import, version, and CLI wiring.
 
 These are intentionally minimal -- a seed so the test gate is non-empty and CI

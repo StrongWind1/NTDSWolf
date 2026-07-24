@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for models/flags.py -- enum definitions and decode_flags."""
 
 from __future__ import annotations

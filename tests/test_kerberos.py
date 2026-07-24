@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/kerberos.py -- RFC 3961/3962 AES string-to-key.
 
 The expected keys are the published [RFC 3962] Appendix B sample test vectors, so

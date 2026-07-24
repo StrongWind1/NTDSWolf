@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/pek.py -- PEKList lookup and per-attribute secret unwrapping.
 
 ``pek_decrypt_secret`` is the live path that unwraps the PEK layer of NT/LM

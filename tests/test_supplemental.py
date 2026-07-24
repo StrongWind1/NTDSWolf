@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for decoders/_supplemental.py -- surfacing dissect's supplementalCredentials."""
 
 from __future__ import annotations

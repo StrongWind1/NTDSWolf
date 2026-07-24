@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/keycredential.py -- KEYCREDENTIALLINK_BLOB parsing.
 
 Mirrors the real [MS-ADTS] 2.2.20 layout: a Version DWORD followed by

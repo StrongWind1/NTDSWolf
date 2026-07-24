@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/hashes.py -- DES un-obfuscation and NT/LM decryption.
 
 The round-trip tests exercise the live NT/LM decryption path the pipeline uses:

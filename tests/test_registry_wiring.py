@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for the decoder-registry path now wired into the pipeline.
 
 Uses a MockObject that mimics dissect's ``Object.get(name, raw=bool)`` contract

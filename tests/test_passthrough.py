@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Tests for the raw-attribute passthrough (decoders/base.py)."""
 
 from __future__ import annotations

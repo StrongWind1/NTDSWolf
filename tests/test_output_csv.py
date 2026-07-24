@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/csv_.py -- flattening and CSV output."""
 
 from __future__ import annotations

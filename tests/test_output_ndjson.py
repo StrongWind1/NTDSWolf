@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/ndjson.py -- newline-delimited JSON output."""
 
 from __future__ import annotations

@@ -76,7 +76,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D", "S101", "S105", "S106", "ANN", "PLR2004", "SLF001", "N802"]
+"src/ntdswolf/cli/app.py" = ["PLR0917"]
+"tests/**" = ["D", "S101", "S105", "S106", "ANN", "PLR0917", "PLR2004", "SLF001", "N802"]
 "ref/**" = ["ALL"]
 
 [tool.ruff.lint.flake8-copyright]

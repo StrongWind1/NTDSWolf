@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for crypto/laps.py and crypto/gkdi.py.
 
 Covers all three LAPS forms:

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/credfiles.py -- shared identity and Kerberos-key formatting."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for trust credential parsing (crypto/trusts.py) and trust-key output.
 
 Uses synthetic LSAPR_AUTH_INFORMATION blobs with a known cleartext password so

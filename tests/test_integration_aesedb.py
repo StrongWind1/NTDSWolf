@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """End-to-end integration tests against public synthetic NTDS fixtures.
 
 Fixtures come from skelsec/aesedb (synthetic test databases, paired ntds.dit +

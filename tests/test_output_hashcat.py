@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Unit tests for output/hashcat.py -- per-class username:hash files for `hashcat --username`."""
 
 from __future__ import annotations
