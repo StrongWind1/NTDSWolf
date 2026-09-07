@@ -118,7 +118,7 @@ class HashcatWriter:
         if self._username_field in {"rid", "sid"}:
             sid = obj_dict.get("objectSid")
             if isinstance(sid, str) and sid:
-                return sid.rsplit("-", 1)[-1] if self._username_field == "rid" else sid
+                return str(sid.rsplit("-", 1)[-1]) if self._username_field == "rid" else sid
             return account_username(obj_dict)
         return account_username(obj_dict)
 

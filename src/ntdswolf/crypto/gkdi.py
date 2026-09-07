@@ -31,7 +31,7 @@ import logging
 import struct
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import dpapi_ng
 from Crypto.Hash import HMAC, SHA1, SHA256, SHA384, SHA512
@@ -140,7 +140,8 @@ def decrypt_dpapi_ng(blob: bytes, cache: dpapi_ng.KeyCache) -> bytes | None:
 
     """
     try:
-        return dpapi_ng.ncrypt_unprotect_secret(blob, cache=cache)
+        result = dpapi_ng.ncrypt_unprotect_secret(blob, cache=cache)
+        return bytes(result) if result is not None else None
     except (ValueError, KeyError, NotImplementedError, IndexError, struct.error):  # fmt: skip
         logger.debug("DPAPI-NG decryption failed", exc_info=True)
         return None
@@ -226,7 +227,7 @@ def _kdf_hash_algorithm(kdf_parameters: bytes) -> ModuleType:
     """Extract the KDF hash module from a ``msKds-KDFParam`` (KDFParameters) blob."""
     hash_len = struct.unpack_from("<I", kdf_parameters, _KDF_HASH_LEN_OFFSET)[0]
     name = kdf_parameters[_KDF_HASH_NAME_OFFSET : _KDF_HASH_NAME_OFFSET + hash_len].decode("utf-16-le").rstrip("\x00")
-    return _HASH_BY_NAME.get(name, SHA512)
+    return cast("ModuleType", _HASH_BY_NAME.get(name, SHA512))
 
 
 def _sid_string_to_bytes(sid: str) -> bytes:

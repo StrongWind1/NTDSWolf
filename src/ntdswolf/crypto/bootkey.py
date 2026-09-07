@@ -75,7 +75,7 @@ def extract_bootkey_from_hive(hive_path: str | Path) -> bytes:
             key_node = hive.open(full_path)
             # The class_name attribute holds the UTF-16LE-decoded string.
             # We only need the first 16 characters (8 hex bytes per fragment).
-            class_name: str | None = key_node.class_name
+            class_name: str | None = str(key_node.class_name) if key_node.class_name is not None else None
             if class_name is None:
                 msg = f"Registry key {full_path} has no class name"
                 raise ValueError(msg)

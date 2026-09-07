@@ -192,7 +192,7 @@ def _decode_key_id(data: bytes, result: KeyCredential) -> None:
 def _decode_dword_or_byte(data: bytes) -> int:
     """Read a DWORD or single-byte integer from *data*, returning -1 if empty."""
     if len(data) >= DWORD_SIZE:
-        return struct.unpack_from("<I", data, 0)[0]
+        return int(struct.unpack_from("<I", data, 0)[0])
     if len(data) >= 1:
         return data[0]
     return -1

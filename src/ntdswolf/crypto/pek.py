@@ -149,7 +149,7 @@ def aes_secret_length(encrypted: bytes) -> int | None:
         return None
     if struct.unpack_from("<H", encrypted, 0)[0] != ALGO_DB_AES:
         return None
-    return struct.unpack_from("<I", encrypted, 24)[0]
+    return int(struct.unpack_from("<I", encrypted, 24)[0])
 
 
 def _decrypt_secret_rc4(encrypted: bytes, pek_list: PEKList) -> bytes:
@@ -169,7 +169,7 @@ def _decrypt_secret_rc4(encrypted: bytes, pek_list: PEKList) -> bytes:
     md5.update(salt)
     rc4_key = md5.digest()
 
-    return ARC4.new(rc4_key).encrypt(ciphertext)
+    return bytes(ARC4.new(rc4_key).encrypt(ciphertext))
 
 
 def _decrypt_secret_aes(encrypted: bytes, pek_list: PEKList, *, keep_padding: bool = False) -> bytes:
@@ -211,20 +211,20 @@ def _aes_cbc_decrypt(key: bytes, ciphertext: bytes, iv: bytes = b"\x00" * 16, *,
     # cipher instance when a non-zero IV is supplied.
     if iv != b"\x00" * 16:
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        plaintext = cipher.decrypt(_pad_to_block(ciphertext))
+        plaintext = bytes(cipher.decrypt(_pad_to_block(ciphertext)))
     else:
         # Zero IV: reset cipher per 16-byte block (legacy mode).
         for offset in range(0, len(ciphertext), 16):
             block = ciphertext[offset : offset + 16]
             block = _pad_to_block(block)
             cipher = AES.new(key, AES.MODE_CBC, iv)
-            plaintext += cipher.decrypt(block)
+            plaintext += bytes(cipher.decrypt(block))
 
     if keep_padding:
         return plaintext
 
     try:
-        return unpad(plaintext, 16)
+        return bytes(unpad(plaintext, 16))
     except ValueError:
         # Data was not PKCS7-padded; return as-is.
         return plaintext

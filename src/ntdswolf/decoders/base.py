@@ -396,7 +396,7 @@ class BaseDecoder(ABC):
             entry = obj.db.data.schema.lookup(attrtyp=attid)
         except (AttributeError, ValueError, KeyError, TypeError):  # fmt: skip
             return attid
-        return entry.name if entry is not None else attid
+        return str(entry.name) if entry is not None else attid
 
     @staticmethod
     def _apply_naming(result: dict[str, Any], naming: str) -> None:

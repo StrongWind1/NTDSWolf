@@ -41,7 +41,7 @@ def account_domain(obj_dict: dict[str, Any]) -> str:
     for component in dn.split(","):
         stripped = component.strip()
         if stripped.upper().startswith("DC="):
-            return stripped[3:].upper()  # first DC label is the NetBIOS-style domain
+            return str(stripped[3:].upper())  # first DC label is the NetBIOS-style domain
     return ""
 
 

@@ -94,7 +94,7 @@ def _remove_des_layer(encrypted_hash: bytes, rid: int) -> bytes:
 
     """
     key1, key2 = _derive_des_keys(rid)
-    return DES.new(key1, DES.MODE_ECB).decrypt(encrypted_hash[:8]) + DES.new(key2, DES.MODE_ECB).decrypt(encrypted_hash[8:16])  # noqa: S304 -- DES required by NTDS per-RID hash obfuscation ([MS-SAMR] section 2.2.11.1)
+    return bytes(DES.new(key1, DES.MODE_ECB).decrypt(encrypted_hash[:8]) + DES.new(key2, DES.MODE_ECB).decrypt(encrypted_hash[8:16]))  # noqa: S304 -- DES required by NTDS per-RID hash obfuscation ([MS-SAMR] section 2.2.11.1)
 
 
 # ---------------------------------------------------------------------------
