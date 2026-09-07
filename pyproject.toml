@@ -1,42 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "ntdswolf"
 version = "0.6.1"
 description = "Offline NTDS.dit parser and credential extractor for Active Directory forensics"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.15"
 license = "Apache-2.0"
-authors = [
-    { name = "StrongWind1" },
-]
+authors = [{ name = "StrongWind1" }]
 keywords = [
-    "active-directory",
-    "ntds",
-    "credential-extraction",
-    "dfir",
-    "forensics",
-    "penetration-testing",
-    "red-team",
-    "security",
+  "active-directory",
+  "ntds",
+  "credential-extraction",
+  "dfir",
+  "forensics",
+  "penetration-testing",
+  "red-team",
+  "security",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
-    "Topic :: Security",
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Security",
 ]
 dependencies = [
-    "dissect-database",
-    "dissect-regf",
-    "dpapi-ng",
-    "pycryptodome",
-    "typing-extensions",
-    "typer",
-    "rich",
+  "dissect-database",
+  "dissect-regf",
+  "dpapi-ng",
+  "pycryptodome",
+  "typing-extensions",
+  "typer",
+  "rich",
 ]
 
 [project.urls]
@@ -55,9 +57,24 @@ dissect-database = { git = "https://github.com/fox-it/dissect.database", rev = "
 dissect-regf = { git = "https://github.com/fox-it/dissect.regf", rev = "66de9489e4eb645e69127234c03844d0ebcc4ec2" }
 dpapi-ng = { git = "https://github.com/jborean93/dpapi-ng", rev = "eac650f928af3eee494f7312131d540a81c5e8af" }
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/ntdswolf"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["/tools", "/site", "/ref"]
+
 [dependency-groups]
-dev = ["pytest", "pytest-cov", "ruff", "ty"]
-docs = ["mkdocs", "mkdocs-material"]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov",
+  "ruff>=0.11",
+  "ty>=0.0.1a7",
+  "pre-commit>=4.0",
+]
+docs = ["mkdocs-material>=9.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 target-version = "py311"
@@ -68,16 +85,26 @@ extend-exclude = ["ref"]
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "COM812",   # Trailing comma - conflicts with ruff formatter
-    "ISC001",   # Implicit string concat - conflicts with ruff formatter
-    "D203",     # No blank line before docstring - conflicts with D211
-    "D213",     # Multi-line docstring at second line - conflicts with D212
-    "PLR0913",  # Too many arguments - CLI, wire-format, and decoder functions legitimately need many params
+  "COM812",  # Trailing comma - conflicts with ruff formatter
+  "ISC001",  # Implicit string concat - conflicts with ruff formatter
+  "D203",    # No blank line before docstring - conflicts with D211
+  "D213",    # Multi-line docstring at second line - conflicts with D212
+  "PLR0913", # Too many arguments - CLI, wire-format, and decoder functions legitimately need many params
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "src/ntdswolf/cli/app.py" = ["PLR0917"]
-"tests/**" = ["D", "S101", "S105", "S106", "ANN", "PLR0917", "PLR2004", "SLF001", "N802"]
+"tests/**" = [
+  "D",
+  "S101",
+  "S105",
+  "S106",
+  "ANN",
+  "PLR0917",
+  "PLR2004",
+  "SLF001",
+  "N802",
+]
 "ref/**" = ["ALL"]
 
 [tool.ruff.lint.flake8-copyright]
@@ -97,36 +124,14 @@ all = "error"
 error-on-warning = true
 
 [tool.ty.analysis]
-# These third-party libraries ship no (or incomplete) type information; treat
-# their imports as Any rather than flagging every untyped attribute and call.
-replace-imports-with-any = [
-    "dissect.**",
-    "Crypto.**",
-    "dpapi_ng.**",
-]
+replace-imports-with-any = ["dissect.**", "Crypto.**", "dpapi_ng.**"]
 allowed-unresolved-imports = []
+strict-equality-semantics = true
+strict-generic-narrowing = true
+respect-type-ignore-comments = false
 
 [[tool.ty.overrides]]
 include = ["tests/**", "ref/**"]
 
 [tool.ty.overrides.rules]
 all = "ignore"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/ntdswolf"]
-
-[tool.hatch.build.targets.sdist]
-# Ship the package, tests, docs, and project files -- not the local research and
-# spec scratch under tools/, or generated site output.
-exclude = [
-    "/tools",
-    "/site",
-    "/ref",
-]
