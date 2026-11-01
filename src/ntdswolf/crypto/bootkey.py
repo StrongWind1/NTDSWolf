@@ -183,7 +183,7 @@ def resolve_bootkey(
 
     """
     # 1. Direct hex value takes highest priority.
-    if bootkey_hex:
+    if bootkey_hex is not None:
         try:
             return parse_bootkey_hex(bootkey_hex)
         except ValueError:
@@ -191,11 +191,11 @@ def resolve_bootkey(
             return None
 
     # 2. Explicit SYSTEM hive path.
-    if system_path:
+    if system_path is not None:
         return _try_extract_from_hive(system_path, "SYSTEM hive")
 
     # 3. Auto-detect near the NTDS.dit.
-    if ntds_dir:
+    if ntds_dir is not None:
         detected = auto_detect_system_hive(ntds_dir)
         if detected:
             return _try_extract_from_hive(detected, "auto-detected SYSTEM hive")

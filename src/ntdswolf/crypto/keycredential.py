@@ -133,7 +133,7 @@ def parse_key_credential(blob: bytes) -> KeyCredential | None:
         _decode_tag(identifier, blob[pos : pos + entry_length], result)
         pos += entry_length
 
-    if not result.get("KeyID") and not result.get("KeyMaterial"):
+    if result.get("KeyID") is None and result.get("KeyMaterial") is None:
         logger.debug("Key credential blob contained no KeyID/KeyMaterial")
         return None
 

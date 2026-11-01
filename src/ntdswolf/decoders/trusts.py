@@ -114,7 +114,7 @@ class TrustDecoder(BaseDecoder):
     @staticmethod
     def _realm_from_dn(dn: str | None) -> str:
         """Build the domain DNS name from a DN's ``DC=`` components."""
-        if not dn:
+        if dn is None:
             return ""
         labels = [part.strip()[3:] for part in dn.split(",") if part.strip().upper().startswith("DC=")]
         return ".".join(labels)

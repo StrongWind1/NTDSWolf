@@ -161,7 +161,7 @@ class GMSADecoder(BaseDecoder):
         nt_encrypted = self._get_attr(obj, "unicodePwd", raw=True)
         if nt_encrypted is not None and isinstance(nt_encrypted, bytes) and rid is not None and ctx.pek_list is not None:
             nt_hash = decrypt_nt_hash(nt_encrypted, ctx.pek_list, rid)
-            creds["ntHash"] = nt_hash.hex() if nt_hash else None
+            creds["ntHash"] = nt_hash.hex() if nt_hash is not None else None
         else:
             creds["ntHash"] = None
 

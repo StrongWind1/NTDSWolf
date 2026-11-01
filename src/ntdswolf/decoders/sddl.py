@@ -144,7 +144,7 @@ _SE_SACL_PROTECTED = 0x2000
 
 def _sid_to_sddl(sid: str | None) -> str:
     """Return the 2-letter SDDL alias for a SID, or the full SID string."""
-    if not sid:
+    if sid is None:
         return ""
     if sid in _WELL_KNOWN_SID_SDDL:
         return _WELL_KNOWN_SID_SDDL[sid]
@@ -153,7 +153,7 @@ def _sid_to_sddl(sid: str | None) -> str:
             alias = _DOMAIN_RID_SDDL.get(int(sid.rsplit("-", 1)[-1]))
         except ValueError:
             alias = None
-        if alias:
+        if alias is not None:
             return alias
     return sid
 

@@ -265,7 +265,7 @@ def _current_nt_hash(encrypted: object, pek_list: PekDecryptor, rid: int | None)
         return None
     if isinstance(encrypted, bytes) and encrypted:
         nt_hash = decrypt_nt_hash(encrypted, pek_list, rid)
-        return nt_hash.hex() if nt_hash else None
+        return nt_hash.hex() if nt_hash is not None else None
     return EMPTY_NT_HASH
 
 

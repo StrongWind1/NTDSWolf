@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 def _version_callback(*, value: bool | None) -> None:
     """Show version and exit when --version is passed."""
-    if value:
+    if value is not None:
         typer.echo(f"ntdswolf {__version__}")
         raise typer.Exit
 

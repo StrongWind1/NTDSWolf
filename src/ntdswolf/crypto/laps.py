@@ -128,7 +128,7 @@ def extract_laps_v2(encrypted: bytes, cache: KeyCache | None = None) -> dict[str
         return None
 
     plaintext = decrypt_dpapi_ng(cms, cache)
-    if not plaintext:
+    if plaintext is None:
         return None
 
     # The decrypted payload is the same UTF-16LE JSON envelope as the cleartext form.
