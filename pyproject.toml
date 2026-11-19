@@ -53,8 +53,8 @@ ntdswolf = "ntdswolf.cli.app:main"
 # Pin the upstream git dependencies to specific commits for reproducible builds.
 # dissect and dpapi-ng are sourced from git for fixes not yet in a PyPI release.
 [tool.uv.sources]
-dissect-database = { git = "https://github.com/fox-it/dissect.database", rev = "62f63012578cd429620f239a9a51704738a340bc" }
-dissect-regf = { git = "https://github.com/fox-it/dissect.regf", rev = "66de9489e4eb645e69127234c03844d0ebcc4ec2" }
+dissect-database = { git = "https://github.com/fox-it/dissect.database", rev = "c6fedbb0e1d878e1fb499f5458275b0e474aa95b" }
+dissect-regf = { git = "https://github.com/fox-it/dissect.regf", rev = "420d59387524e43a559c8253b21c44075f593523" }
 dpapi-ng = { git = "https://github.com/jborean93/dpapi-ng", rev = "eac650f928af3eee494f7312131d540a81c5e8af" }
 
 [tool.hatch.build.targets.wheel]
