@@ -1,8 +1,6 @@
 <h1 align="center">NTDSWolf</h1>
 
-<p align="center">
-  Offline NTDS.dit parser and credential extractor for Active Directory forensics, penetration testing, and security auditing.
-</p>
+<p align="center"><strong>Read NTDS.dit offline. Every hash, Kerberos key, LAPS and gMSA password, plus secretsdump-identical pwdump output.</strong></p>
 
 <p align="center">
   <a href="https://github.com/StrongWind1/NTDSWolf/actions/workflows/ci.yml"><img src="https://github.com/StrongWind1/NTDSWolf/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -13,32 +11,37 @@
 </p>
 
 <p align="center">
-  <a href="https://strongwind.dev/NTDSWolf/guide/">Guide</a> &bull;
   <a href="https://strongwind.dev/NTDSWolf/getting-started/installation/">Installation</a> &bull;
-  <a href="https://strongwind.dev/NTDSWolf/reference/cli/">CLI reference</a>
+  <a href="https://strongwind.dev/NTDSWolf/#quick-start">Quick start</a> &bull;
+  <a href="https://strongwind.dev/NTDSWolf/reference/cli/">CLI reference</a> &bull;
+  <a href="https://strongwind.dev/NTDSWolf/guide/output-formats/">Output formats</a> &bull;
+  <a href="https://strongwind.dev/NTDSWolf/">Documentation</a>
 </p>
 
-NTDSWolf parses Windows Active Directory NTDS.dit database files with two goals: dump **everything** the directory holds - every object's full attribute set - and present all credential material correctly. It extracts and decrypts NT/LM hashes (and history), Kerberos keys, WDigest, cleartext passwords, trust keys, LAPS, and gMSA/dMSA managed passwords, and emits structured output (NDJSON/JSON/CSV) plus hashcat and pwdump cracking formats that are byte-identical to secretsdump.
+---
 
-## Why NTDSWolf?
-
-- **Dumps everything** - every object carries an `_unmapped` field with all remaining stored and linked LDAP attributes, so nothing in the database is silently dropped.
-- **Correct credentials** - NT/LM hashes and history, Kerberos keys (current, previous, and service), WDigest, cleartext, trust keys, LAPS, and gMSA/dMSA managed passwords; the hashcat and pwdump outputs are byte-identical to secretsdump.
-- **Pure Python** - runs on Linux, macOS, and Windows with no .NET dependency and no impacket.
-- **Parses modern NTDS.dit** - handles Windows Server 2008 through 2025, including the AES PEK era.
-- **Typed and tested** - full type hints, strict linting, and a test suite covering the decryption and output paths.
+NTDSWolf parses an offline Active Directory NTDS.dit and decrypts the credential material it holds: NT/LM hashes and history, Kerberos keys, WDigest, cleartext passwords, trust keys, LAPS, and gMSA/dMSA managed passwords. It dumps every object with its full attribute set as NDJSON, JSON, or CSV, and writes cracking files: hashcat `username:hash` lists and pwdump files byte-identical to secretsdump's. It is pure Python, with no impacket and no .NET dependency, and runs on Linux, macOS, and Windows.
 
 ## Example
 
-Extract every credential from an offline `ntds.dit` + `SYSTEM` hive into secretsdump-identical files:
+Decrypt an offline `ntds.dit` with its `SYSTEM` hive and write secretsdump's file set:
 
 ```console
-$ ntdswolf ntds.dit --system SYSTEM --format pwdump
-[*] wrote hashes.ntds, hashes.ntds.kerberos, hashes.ntds.cleartext
-
-$ head -1 hashes.ntds
+$ ntdswolf ntds.dit --system SYSTEM --format pwdump -q -o ./output/
+$ grep '^Administrator:' output/hashes.ntds
 Administrator:500:aad3b435b51404eeaad3b435b51404ee:7facdc498ed1680c4fd1448319a8c04f:::
 ```
+
+## Features
+
+- **Dumps everything**: every object carries an `_unmapped` field with all remaining stored and linked LDAP attributes, so nothing in the database is silently dropped.
+- **secretsdump parity**: the `pwdump` format writes byte-for-byte what `impacket-secretsdump -outputfile` writes: `hashes.ntds` (with password history), `hashes.ntds.kerberos`, and `hashes.ntds.cleartext`.
+- **Full Kerberos key sets**: current, previous-password, and service keys, including the Server 2025 AES-SHA2 key types; the decoded `supplementalCredentials` blob is kept verbatim.
+- **LAPS and managed passwords**: LAPS v1 and v2 (cleartext and encrypted), and gMSA/dMSA passwords derived offline and self-verified against the account's NT hash.
+- **Five output formats**: NDJSON (default), JSON, and CSV with one file per object class; `hashcat` `username:hash` files split by class, hash type, and age; and `pwdump`.
+- **Parses modern NTDS.dit**: Windows Server 2008 through 2025, in both the RC4 and AES PEK eras ([compatibility](https://strongwind.dev/NTDSWolf/guide/compatibility/)).
+- **Parallel extraction**: `--workers` spreads extraction across processes and produces output identical to the single-threaded path.
+- **Typed and tested**: full type hints, strict linting, and a test suite covering the decryption and output paths.
 
 ## Installation
 
@@ -55,9 +58,11 @@ Or install from source:
 uv tool install git+https://github.com/StrongWind1/NTDSWolf
 ```
 
+The runtime dependencies and what each one does are listed in the [installation guide](https://strongwind.dev/NTDSWolf/getting-started/installation/#dependencies).
+
 ## Quick start
 
-```bash
+```sh
 # Basic extraction with auto-detected SYSTEM hive
 ntdswolf ntds.dit
 
@@ -77,118 +82,20 @@ ntdswolf ntds.dit --system SYSTEM --format json --extract users,groups
 ntdswolf ntds.dit --system SYSTEM --format pwdump -o ./output/
 ```
 
-## CLI reference
+Every flag is in the [CLI reference](https://strongwind.dev/NTDSWolf/reference/cli/), file names and sample lines for each format in [Output formats](https://strongwind.dev/NTDSWolf/guide/output-formats/), and exit codes in [Windows Server compatibility](https://strongwind.dev/NTDSWolf/guide/compatibility/#exit-codes).
 
-```
-ntdswolf <ntds.dit> [OPTIONS]
-
-Arguments:
-  ntds.dit                     Path to the NTDS.dit database file (required)
-
-Options:
-  --system PATH                Path to SYSTEM registry hive for boot key extraction
-  --bootkey HEX                Raw 32-character hex boot key (overrides --system)
-  -o, --output PATH            Output directory (default: ./ntdswolf-output/)
-  -f, --format FORMAT          Output format: ndjson, json, csv, hashcat, pwdump
-                               (default: ndjson)
-  -e, --extract CLASSES        Comma-separated object classes to extract:
-                               users, computers, groups, trusts, domains, all
-                               (default: all)
-  -w, --workers N              Number of parallel workers (default: 1)
-  --no-history                 Exclude password history hashes
-  --include-deleted            Include deleted (tombstoned) objects (excluded by default)
-  --naming MODE                Object naming: dn, sam, cn (default: dn)
-  --hashcat-username FIELD     hashcat line username: sam, upn, rid, sid (default: sam)
-  -v, --verbose                Verbose logging to stderr
-  -q, --quiet                  Suppress all non-error output
-  --version                    Print version and exit
-```
-
-## Output formats
-
-The structured formats (NDJSON, JSON, CSV) write one file per object class with the curated, decoded fields **plus** an `_unmapped` field carrying every remaining stored and linked LDAP attribute - printable-ASCII values verbatim, anything else hex-encoded - so nothing is dropped. The `hashcat` and `pwdump` formats emit only credential material for cracking.
-
-### NDJSON (default)
-
-One JSON object per line, one file per object class. Compatible with `jq`, SIEM ingestion, and streaming parsers.
-
-```bash
-ntdswolf ntds.dit --system SYSTEM --format ndjson
-# Output: users.ndjson, computers.ndjson, groups.ndjson, ...
-```
-
-```json
-{"_object_class": "user", "_dnt": 3802, "sAMAccountName": "Administrator", "objectSid": "S-1-5-21-...-500", "credentials": {"ntHash": "7facdc498ed1680c4fd1448319a8c04f", ...}, "_unmapped": {"primaryGroupID": 513, "codePage": 0, "logonCount": 42, ...}}
-```
-
-### JSON
-
-Pretty-printed JSON arrays, one file per object class.
-
-```bash
-ntdswolf ntds.dit --system SYSTEM --format json
-# Output: users.json, computers.json, ...
-```
-
-### CSV
-
-Flat CSV with one row per object. Nested fields flattened with dot notation.
-
-```bash
-ntdswolf ntds.dit --system SYSTEM --format csv
-# Output: users.csv, computers.csv, ...
-```
-
-### hashcat
-
-NT and LM hashes as `username:hash` lines for `hashcat --username`, split per object class, hash type (NT/LM), and age (current/history). By default the username is the sAMAccountName; `--hashcat-username` switches it to `upn`, `rid`, or `sid`. Kerberos keys are not emitted (use `pwdump` for those).
-
-```bash
-ntdswolf ntds.dit --system SYSTEM --format hashcat
-# Output: ntlm_<type>_current.txt, ntlm_<type>_history.txt,
-#         lm_<type>_current.txt, lm_<type>_history.txt
-```
-
-```
-# ntlm_user_current.txt
-Administrator:7facdc498ed1680c4fd1448319a8c04f
-
-# lm_user_current.txt  (the two 8-byte LM halves)
-Administrator:1122334455667788
-Administrator:aabbccddeeff0011
-```
-
-### pwdump
-
-secretsdump-compatible "newer pwdump" output - byte-for-byte the files `impacket-secretsdump -outputfile` writes: the classic `username:rid:lm:nt:::` lines plus Kerberos-key and cleartext sidecar files.
-
-```bash
-ntdswolf ntds.dit --system SYSTEM --format pwdump
-# Output: hashes.ntds, hashes.ntds.kerberos, hashes.ntds.cleartext
-```
-
-```
-# hashes.ntds
-Administrator:500:aad3b435b51404eeaad3b435b51404ee:7facdc498ed1680c4fd1448319a8c04f:::
-
-# hashes.ntds.kerberos
-Administrator:aes256-cts-hmac-sha1-96:6c2d8...e1
-```
-
-## Extracted data
-
-### Credential types
+## Credential types
 
 **Supported** types are extracted and verified against real NTDS databases. **Wired (unverified)** decoders run in the pipeline but have not yet been confirmed against real data.
 
-| Type | Source Attribute | Status |
-|---|---|---|
+| Type | Source attribute | Status |
+| --- | --- | --- |
 | NT (NTLM) hashes | `unicodePwd` | Supported |
 | LM hashes | `dBCSPwd` | Supported |
 | NT hash history | `ntPwdHistory` | Supported |
 | LM hash history | `lmPwdHistory` | Supported |
 | Kerberos keys (AES256, AES128, RC4, DES) | `supplementalCredentials` | Supported |
-| Kerberos WS2025 keys (AES256-SHA384, AES128-SHA256) | `supplementalCredentials` | Supported |
+| Kerberos Server 2025 keys (AES256-SHA384, AES128-SHA256) | `supplementalCredentials` | Supported |
 | WDigest hashes | `supplementalCredentials` | Supported |
 | Cleartext passwords | `supplementalCredentials` | Supported |
 | NTLM-Strong-NTOWF | `supplementalCredentials` | Supported |
@@ -201,92 +108,36 @@ Administrator:aes256-cts-hmac-sha1-96:6c2d8...e1
 | DPAPI backup keys (PVK + PEM) | `secret` objects | Wired (unverified) |
 | BitLocker recovery keys | `msFVE-RecoveryInformation` | Wired (unverified) |
 
-In the structured formats, Kerberos keys appear as the current set (`kerberos`) plus the previous-password and service sets (`kerberosOld` / `kerberosOlder` / `kerberosService`), and the complete decoded `supplementalCredentials` blob is preserved verbatim under `supplementalCredentialsRaw`.
+The class-specific fields decoded for users, computers, groups, trusts, managed service accounts, and domains, and how the Kerberos key sets map to output fields, are in [Credential types](https://strongwind.dev/NTDSWolf/guide/credential-types/).
 
-### Object types
+## Development
 
-The pipeline decodes each object's common attributes and adds class-specific fields for the classes below. **Every** object - whatever its class - also carries an `_unmapped` field with all remaining stored and linked LDAP attributes, so no data is dropped.
-
-| Object Class | Class-specific fields extracted |
-|---|---|
-| `user` | NT/LM hashes + history, sAMAccountName, UPN, userAccountControl (decoded flags), sAMAccountType, account timestamps, adminCount, group membership |
-| `computer` | Same as user, plus dNSHostName and operating-system info |
-| `group` | sAMAccountName, groupType, adminCount, members (via link resolution) |
-| `trustedDomain` | trustPartner, flatName, securityIdentifier, trustType / trustDirection / trustAttributes, decrypted trust keys (RC4 + AES, both directions) |
-| `msDS-*ManagedServiceAccount` | NT hash + Kerberos keys; gMSA/dMSA also get the offline-derived `managedPassword` (self-verified against the NT hash) |
-| `domainDNS` | Functional level, password and lockout policy fields |
-| All others | Common attributes (DN, objectGUID, objectSid, name, timestamps, isDeleted), plus every remaining attribute under `_unmapped` |
-
-## Windows Server compatibility
-
-| Server Version | NTDS.dit Parsing | PEK Decryption | Hash Extraction |
-|---|---|---|---|
-| Server 2008 / 2008 R2 | Supported | RC4 | Supported |
-| Server 2012 / 2012 R2 | Supported | RC4 | Supported |
-| Server 2016 | Supported | AES | Supported |
-| Server 2019 | Supported | AES | Supported |
-| Server 2022 | Supported | AES | Supported |
-| Server 2025 | Supported | AES | Supported |
-
-## Architecture
-
-NTDSWolf uses a three-phase processing pipeline:
-
-1. **Open** - Opens the ESE database via `dissect.database` and loads the AD schema
-2. **Decrypt** - Resolves the boot key from the SYSTEM hive (or raw hex) and unlocks the Password Encryption Keys
-3. **Extract** - Iterates all objects, dispatches each to its decoder, resolves links natively via dissect, decrypts credentials, and writes to output
-
-Object decoding is dispatched through a per-class decoder registry (`decoders/`). Phase 3 runs across multiple worker processes when `--workers` is greater than 1, producing output identical to the single-threaded path.
-
-```
-ntdswolf/
-  cli/          Command-line interface (typer)
-  core/         Pipeline orchestration, database wrapper, caches, worker pool
-  crypto/       Boot key, PEK, and NT/LM hash decryption; trust/DPAPI/LAPS/key-credential parsers
-  decoders/     Per-class object decoders and the decoder registry
-  output/       Format writers (NDJSON, JSON, CSV, hashcat, pwdump)
-  models/       Enums and flag definitions
-  constants.py  Spec-derived constants and well-known values
+```sh
+git clone https://github.com/StrongWind1/NTDSWolf.git && cd NTDSWolf
+uv sync                        # install dev dependencies
+make check                     # lint, typecheck, tests, strict docs build
 ```
 
-## Dependencies
-
-| Package | Purpose |
-|---|---|
-| `dissect.database` | ESE database parsing, NTDS object model, schema |
-| `dissect.regf` | SYSTEM registry hive parsing for boot key |
-| `dpapi-ng` | Offline MS-GKDI / DPAPI-NG decryption for LAPS v2 |
-| `pycryptodome` | AES, DES, RC4, MD4, HMAC, PBKDF2 |
-| `typing-extensions` | `@override` backport for Python 3.11 |
-| `typer` | CLI framework |
-| `rich` | Progress bars and colored output |
-
-## Exit codes
-
-| Code | Meaning |
-|---|---|
-| 0 | Success |
-| 1 | General error (I/O, invalid arguments) |
-| 2 | Invalid or unreadable NTDS.dit file |
-| 3 | Boot key validation failed (wrong SYSTEM hive) |
-| 4 | Partial extraction (some objects had errors) |
+Source layout under `src/ntdswolf/`: `cli/` (typer CLI), `core/` (pipeline orchestration, database wrapper, caches, worker pool), `crypto/` (boot key, PEK, and NT/LM hash decryption; trust, DPAPI, LAPS, and key-credential parsers), `decoders/` (per-class object decoders and the decoder registry), `output/` (format writers), `models/` (enums and flag definitions), `constants.py` (spec-derived constants). The three-phase pipeline is described in the [Guide](https://strongwind.dev/NTDSWolf/guide/#processing-pipeline).
 
 ## Credits
 
-Built on the [dissect](https://github.com/fox-it/dissect) framework by Fox-IT. The hashcat and pwdump outputs are byte-compatible with [impacket](https://github.com/fortra/impacket)'s secretsdump.
+Built on the [dissect](https://github.com/fox-it/dissect) framework by Fox-IT, with [dpapi-ng](https://github.com/jborean93/dpapi-ng) for offline MS-GKDI / DPAPI-NG decryption. The pwdump output is byte-compatible with [impacket](https://github.com/fortra/impacket)'s secretsdump.
 
 ## Related tools
 
-Other projects in this collection:
+- [**CredWolf**](https://github.com/StrongWind1/CredWolf): Validate AD passwords, hashes, keys, and tickets over NTLM and Kerberos
+- [**KerbWolf**](https://github.com/StrongWind1/KerbWolf): Kerberos roasting and TGT attack toolkit for Active Directory
+- [**PassWolf**](https://github.com/StrongWind1/PassWolf): Spec-compliant AD password change, reset, and policy read over SAMR, Netlogon, LSA, Kerberos, LDAP
+- [**AD-SecretGen**](https://github.com/StrongWind1/AD-SecretGen): Derive every password-derived AD secret (NT/LM, Kerberos keys, WDigest) from a password
+- [**ntcompress**](https://github.com/StrongWind1/ntcompress): Pure-Python ESE record compression and ntdll RtlCompressBuffer/RtlDecompressBuffer formats
+- [**Kerberos**](https://github.com/StrongWind1/Kerberos): Protocol internals, security configuration, and attack techniques for Kerberos in Active Directory
 
-- [AD-SecretGen](https://github.com/StrongWind1/AD-SecretGen) - derive AD password hashes and Kerberos keys from a password
-- [CredWolf](https://github.com/StrongWind1/CredWolf) - Active Directory credential validation
-- [KerbWolf](https://github.com/StrongWind1/KerbWolf) - Kerberos roasting and hash extraction toolkit
-- [Kerberos](https://github.com/StrongWind1/Kerberos) - Kerberos in Active Directory: protocol, security, and attacks
+All tools: [strongwind.dev](https://strongwind.dev)
 
 ## Disclaimer
 
-NTDSWolf is intended for authorized digital forensics, penetration testing, and security auditing only. You must have explicit written authorization to access and analyze any NTDS.dit database you process with it. Unauthorized access to computer systems and data is illegal. The authors are not responsible for any misuse or damage caused by this tool.
+NTDSWolf is for authorized security testing, research, and education. Use it only against systems and data you own or have written permission to test. You are responsible for how you use it.
 
 ## License
 
