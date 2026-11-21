@@ -20,6 +20,7 @@ clean for piped output.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import multiprocessing
 import time
@@ -447,17 +448,13 @@ class PipelineOrchestrator:
     def _should_skip(self, obj: Object) -> bool:
         """Return True if the object should be excluded from extraction."""
         # Skip phantom (non-local) objects -- cross-domain references with no local data.
-        try:
+        with contextlib.suppress(AttributeError, TypeError):
             if obj.is_phantom:
                 return True
-        except (AttributeError, TypeError):  # fmt: skip
-            pass
 
         # Skip deleted objects unless --include-deleted was specified.
-        try:
+        with contextlib.suppress(AttributeError, TypeError):
             if obj.is_deleted and not self._config.include_deleted:
                 return True
-        except (AttributeError, TypeError):  # fmt: skip
-            pass
 
         return False

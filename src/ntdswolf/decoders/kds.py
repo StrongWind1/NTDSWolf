@@ -18,6 +18,7 @@ Import rules: decoders import from crypto/, models/, constants ONLY.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -155,20 +156,16 @@ def _try_decode_xml(data: bytes) -> str:
 
     """
     # Try UTF-16LE first (most common for AD XML attributes)
-    try:
+    with contextlib.suppress(UnicodeDecodeError, ValueError):
         decoded = data.decode("utf-16-le").rstrip("\x00")
         if decoded and ("<" in decoded or "?" in decoded):
             return decoded
-    except (UnicodeDecodeError, ValueError):  # fmt: skip
-        pass
 
     # Try UTF-8
-    try:
+    with contextlib.suppress(UnicodeDecodeError, ValueError):
         decoded = data.decode("utf-8").rstrip("\x00")
         if decoded and ("<" in decoded or "?" in decoded):
             return decoded
-    except (UnicodeDecodeError, ValueError):  # fmt: skip
-        pass
 
     # Fall back to hex
     return data.hex()

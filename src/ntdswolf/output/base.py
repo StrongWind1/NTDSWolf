@@ -90,7 +90,6 @@ class OutputWriter(Protocol):
             object_class: AD object class name (e.g. "user", "group").
 
         """
-        ...
 
     def write(self, obj_dict: dict[str, Any]) -> None:
         """Write a single extracted object to the output file.
@@ -100,11 +99,9 @@ class OutputWriter(Protocol):
                       Must contain ``_object_class`` at minimum.
 
         """
-        ...
 
     def close(self) -> None:
         """Flush any buffered data and close the output file."""
-        ...
 
 
 # Writer class registry -- maps format name to (module_path, class_name).

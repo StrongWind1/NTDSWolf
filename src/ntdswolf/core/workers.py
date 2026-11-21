@@ -18,6 +18,7 @@ the pipeline falls back to single-threaded extraction.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
@@ -115,16 +116,12 @@ def _picklable(value: Any) -> Any:  # noqa: ANN401 -- recursive sanitizer over a
 
 def _should_skip(obj: DissectObject) -> bool:
     """Mirror the pipeline's phantom/deleted skip logic inside a worker."""
-    try:
+    with contextlib.suppress(AttributeError, TypeError):
         if obj.is_phantom:
             return True
-    except (AttributeError, TypeError):
-        pass
-    try:
+    with contextlib.suppress(AttributeError, TypeError):
         if obj.is_deleted and not _SHARED_INCLUDE_DELETED:
             return True
-    except (AttributeError, TypeError):
-        pass
     return False
 
 

@@ -55,7 +55,7 @@ class PekDecryptor(Protocol):
 
     def decrypt(self, data: bytes) -> bytes:
         """Return the plaintext with the PEK layer removed."""
-        ...
+        raise NotImplementedError
 
 
 @dataclass
