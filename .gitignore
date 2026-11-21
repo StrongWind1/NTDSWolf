@@ -262,7 +262,10 @@ scripts/
 ref/
 
 # Local research scratch -- the separate secrets-generator project and its spec docs.
-/tools/
+# The two built-site checkers are the only tracked files under it.
+/tools/*
+!/tools/check-a11y.js
+!/tools/require-site.js
 
 # Captured NTDS fixtures can contain live credentials and host names -- never
 # commit them; use small synthetic fixtures for tests instead.
@@ -275,3 +278,6 @@ ref/
 # Tool output directories
 ntdswolf-output/
 ntdswolf_output/
+
+# Built-site checkers (npm ci)
+node_modules/
