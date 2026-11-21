@@ -32,11 +32,13 @@ NTDSWolf replaces and improves upon existing tools (ntdissector, secretsdump) by
 ### 2.1 Input Handling
 
 #### FR-1: NTDS.dit Database Parsing
+
 NTDSWolf shall open and parse NTDS.dit files in the Extensible Storage Engine (ESE / JET Blue) format. It shall support all ESE page sizes (4KB, 8KB, 16KB, 32KB) and both legacy and modern ESE format versions. Parsing shall use the `dissect.database` library as the ESE backend.
 
 **Spec reference:** [MS-ESENT] Extensible Storage Engine File Format.
 
 #### FR-2: SYSTEM Hive Boot Key Extraction
+
 NTDSWolf shall accept the boot key (SYSKEY) via three methods, tried in this order:
 1. **Raw hex string:** 32-character hex string passed via `--bootkey` argument.
 2. **SYSTEM hive file:** Path to a SYSTEM registry hive file passed via `--system` argument. The boot key shall be extracted from `ControlSet00X\Control\Lsa\{JD, Skew1, GBG, Data}` class names and unscrambled per the documented permutation table.
@@ -47,6 +49,7 @@ If no boot key source is found or provided, NTDSWolf shall proceed without decry
 **Spec reference:** Boot key storage is documented in [MS-GKDI] and Microsoft KB articles. The permutation table is a fixed, well-known constant.
 
 #### FR-3: Schema Resolution
+
 NTDSWolf shall build the AD attribute schema from the NTDS.dit database itself by reading `classSchema` and `attributeSchema` records from the datatable. It shall:
 - Map ESE column names (`ATTm589970`, etc.) to LDAP display names (`cn`, `sAMAccountName`, etc.).
 - Resolve OID prefixes using the prefix table stored in the database.
@@ -60,6 +63,7 @@ Schema resolution shall use `dissect.database`'s built-in schema handling (70+ b
 ### 2.2 Object Extraction
 
 #### FR-4: Object Classes
+
 NTDSWolf shall extract all objects from the datatable. At minimum, it shall produce typed output for the following object classes:
 
 | Object Class | Key Attributes |
@@ -78,11 +82,13 @@ NTDSWolf shall extract all objects from the datatable. At minimum, it shall prod
 All other object classes shall be extracted with their raw attributes as generic objects.
 
 #### FR-5: Distinguished Name Reconstruction
+
 NTDSWolf shall reconstruct the full distinguished name (DN) for every object by walking the `DNT_col` / `PDNT_col` parent chain. The RDN type shall be determined from `RDNtyp_col` to correctly produce `CN=`, `OU=`, `DC=`, etc. prefixes.
 
 **Spec reference:** [MS-ADTS] §3.1.1.3.1.2 (Object Naming).
 
 #### FR-6: Linked Value Resolution
+
 NTDSWolf shall parse the `link_table` to resolve all multi-valued linked attributes. This includes:
 - Group membership (`member` / `memberOf`)
 - Manager relationships (`manager` / `directReports`)
@@ -94,6 +100,7 @@ Both forward links and backlinks shall be resolved. Deleted and deactivated link
 **Spec reference:** [MS-ADTS] §3.1.1.2.3 (Link Value Stamps).
 
 #### FR-7: Security Descriptor Parsing
+
 NTDSWolf shall parse security descriptors from the `sd_table` and associate them with objects via the `nTSecurityDescriptor` attribute. Security descriptors shall be output in both binary and SDDL string format.
 
 **Spec reference:** [MS-DTYP] §2.4.6 (SECURITY_DESCRIPTOR).
@@ -101,6 +108,7 @@ NTDSWolf shall parse security descriptors from the `sd_table` and associate them
 ### 2.3 Credential Extraction
 
 #### FR-8: PEK Decryption
+
 NTDSWolf shall decrypt the Password Encryption Key (PEK) list from the domain object's `pekList` attribute using the boot key. Both encryption versions shall be supported:
 - **Pre-Windows Server 2012 R2:** RC4 with MD5-PBKDF (1000 iterations), salt from PEK header.
 - **Windows Server 2016+:** AES-128-CBC with PBKDF2-HMAC-SHA1.
@@ -110,6 +118,7 @@ The PEK authenticator GUID (`4881d956-91ec-11d1-905a-00c04fc2d4cf`) shall be val
 **Spec reference:** [MS-ADTS] §3.1.1.3.1.6 (Password Encryption Key).
 
 #### FR-9: Password Hash Extraction
+
 NTDSWolf shall decrypt and extract the following password-related attributes for every user and computer object:
 - `unicodePwd` -- NT hash (MD4 of UTF-16LE password), 16 bytes.
 - `dBCSPwd` -- LM hash (DES-based), 16 bytes. Legacy, often empty.
@@ -123,6 +132,7 @@ Hashes shall be output as lowercase hex strings. Empty/missing hashes shall use 
 **Spec reference:** [MS-SAMR] §2.2.11.1 (ENCRYPTED_NT_OWF_PASSWORD).
 
 #### FR-10: Supplemental Credentials Parsing
+
 NTDSWolf shall decrypt and parse the `supplementalCredentials` attribute (USER_PROPERTIES structure) to extract:
 
 | Property Name | Content | Output |
@@ -138,6 +148,7 @@ NTDSWolf shall also support Windows Server 2025 Kerberos key types: `AES256-CTS-
 **Spec reference:** [MS-SAMR] §2.2.10 (USER_PROPERTIES), [MS-KILE] §3.1.1.1 (Kerberos Key Types).
 
 #### FR-11: Trust Password Extraction
+
 NTDSWolf shall decrypt trust authentication data from `trustAuthIncoming` and `trustAuthOutgoing` attributes. For each trust, it shall extract:
 - Cleartext trust password (TRUST_AUTH_TYPE_CLEAR).
 - NT4OWF hash (TRUST_AUTH_TYPE_NT4OWF).
@@ -151,6 +162,7 @@ Both current and previous authentication info shall be extracted.
 **Spec reference:** [MS-LSAD] §2.2.7.21 (LSAPR_AUTH_INFORMATION), [RFC 3962] (AES String to Key).
 
 #### FR-12: DPAPI Backup Key Extraction
+
 NTDSWolf shall extract DPAPI domain backup keys from `secret` objects in the database. It shall output:
 - The RSA private key in PVK format.
 - The associated X.509 certificate in PEM format.
@@ -158,6 +170,7 @@ NTDSWolf shall extract DPAPI domain backup keys from `secret` objects in the dat
 **Spec reference:** [MS-BKRP] §3.1.4.1 (BackupKey Remote Protocol).
 
 #### FR-13: LAPS Password Extraction
+
 NTDSWolf shall extract Local Administrator Password Solution credentials:
 - **LAPS v1:** `ms-Mcs-AdmPwd` (plaintext string), `ms-Mcs-AdmPwdExpirationTime`.
 - **LAPS v2 (Windows LAPS):** `msLAPS-EncryptedPassword`, `msLAPS-EncryptedPasswordHistory`, `msLAPS-EncryptedDSRMPassword`, `msLAPS-EncryptedDSRMPasswordHistory`. Decryption requires KDS root keys (`msKds-ProvRootKey` objects) from the database and MS-GKDI group key derivation.
@@ -166,11 +179,13 @@ NTDSWolf shall extract Local Administrator Password Solution credentials:
 **Spec reference:** [MS-GKDI] (Group Key Distribution Protocol), [MS-LAPS] (Local Administrator Password Solution).
 
 #### FR-14: Group Managed Service Account (gMSA) Passwords
+
 NTDSWolf shall extract gMSA managed password metadata from `msDS-ManagedPasswordId` and `msDS-ManagedPasswordPreviousId`. If KDS root keys are available in the database, NTDSWolf shall derive the current managed password using MS-GKDI key derivation.
 
 **Spec reference:** [MS-ADTS] §3.1.1.4.5.28 (msDS-ManagedPassword), [MS-GKDI] §3.1.4.1.
 
 #### FR-15: BitLocker Recovery Key Extraction
+
 NTDSWolf shall extract BitLocker recovery information from `msFVE-RecoveryInformation` objects, including:
 - `msFVE-RecoveryPassword` (48-digit numerical recovery password).
 - `msFVE-VolumeGuid` (volume identifier).
@@ -179,6 +194,7 @@ NTDSWolf shall extract BitLocker recovery information from `msFVE-RecoveryInform
 **Spec reference:** [MS-FVE] §2.2 (BitLocker Data Structures).
 
 #### FR-16: Key Credential Extraction (Windows Hello / FIDO2)
+
 NTDSWolf shall parse `msDS-KeyCredentialLink` attributes to extract Windows Hello for Business and FIDO2 key credentials. For each key credential, it shall output:
 - Key ID, key type (NGC, FIDO2, STK), key usage.
 - RSA or EC public key material.
@@ -188,6 +204,7 @@ NTDSWolf shall parse `msDS-KeyCredentialLink` attributes to extract Windows Hell
 **Spec reference:** [MS-ADTS] §2.2.20 (msDS-KeyCredentialLink Attribute), [WebAuthn] §6.5.4 (COSE Key).
 
 #### FR-17: Replication Metadata
+
 NTDSWolf shall parse the `replPropertyMetaData` attribute to extract per-attribute replication metadata including:
 - Originating DSA (domain controller that last wrote the attribute).
 - Originating USN and local USN.
@@ -201,6 +218,7 @@ This data is critical for forensic timeline reconstruction.
 ### 2.4 Output
 
 #### FR-18: Output Formats
+
 NTDSWolf shall support the following output formats, selectable via CLI flags:
 
 | Format | Flag | Description |
@@ -215,6 +233,7 @@ NTDSWolf shall support the following output formats, selectable via CLI flags:
 All text output shall be UTF-8 encoded. Binary values shall be lowercase hex-encoded.
 
 #### FR-19: Output Organization
+
 Output shall be organized into a configurable output directory (`--output`, default: `./ntdswolf_output/`). Files shall be named by object class and format:
 - `users.ndjson`, `computers.ndjson`, `groups.ndjson`, `trusts.ndjson`, `domains.ndjson`, `gpos.ndjson`, etc.
 - `hashes.hashcat`, `hashes.john`, `hashes.pwdump` for credential-specific formats.
@@ -223,6 +242,7 @@ Output shall be organized into a configurable output directory (`--output`, defa
 - `kds_root_keys.ndjson` for KDS root key data.
 
 #### FR-20: Selective Extraction
+
 NTDSWolf shall support extracting specific object classes or credential types:
 - `--extract users,groups,trusts` -- Only extract specified object classes.
 - `--extract hashes` -- Only extract password hashes (hashcat/john/pwdump output).
@@ -233,6 +253,7 @@ NTDSWolf shall support extracting specific object classes or credential types:
 ### 2.5 Data Type Handling
 
 #### FR-21: AD Data Type Decoding
+
 NTDSWolf shall correctly decode all Active Directory data types per [MS-ADTS] §3.1.1.2.2:
 
 | AD Syntax | ESE Type | Output Format |
@@ -252,6 +273,7 @@ NTDSWolf shall correctly decode all Active Directory data types per [MS-ADTS] §
 Encoding detection for strings shall be determined by the `NTLMSSP_NEGOTIATE_UNICODE` flag equivalent in the ESE column metadata (codepage). Every `.decode()` call shall be commented with the flag or spec section driving the encoding choice.
 
 #### FR-22: Enumeration and Flag Decoding
+
 NTDSWolf shall decode well-known enumeration and flag fields into human-readable form:
 - `userAccountControl` -- List of flag names (e.g., `["NORMAL_ACCOUNT", "DONT_EXPIRE_PASSWD"]`).
 - `sAMAccountType` -- Enum name (e.g., `"SAM_USER_OBJECT"`).
@@ -270,12 +292,15 @@ Raw numeric values shall always be included alongside decoded names (e.g., `"use
 ### 3.1 Performance
 
 #### NFR-1: Streaming Processing
+
 NTDSWolf shall process the datatable, link_table, and sd_table as streams. Peak memory usage shall remain bounded regardless of database size. The bound shall be configurable but default to a reasonable limit (e.g., 512MB for caches and buffers).
 
 #### NFR-2: Parallel Processing
+
 NTDSWolf shall support parallel object processing via configurable worker count (`--workers N`, default: CPU count). Schema building and PEK decryption are sequential prerequisites; object extraction and output shall be parallelized.
 
 #### NFR-3: Progress Reporting
+
 NTDSWolf shall display progress during long-running operations:
 - Object count and throughput (objects/sec) during extraction.
 - Current phase (schema loading, PEK decryption, object extraction, link resolution).
@@ -285,11 +310,13 @@ NTDSWolf shall display progress during long-running operations:
 ### 3.2 Reliability
 
 #### NFR-4: Error Handling
+
 NTDSWolf shall not crash on corrupted, truncated, or malformed records. Individual record failures shall be logged with the DNT and error details, and processing shall continue. A summary of errors shall be printed at completion.
 
 No bare `except:` clauses. All exception handlers shall catch specific exception types and log the error with context.
 
 #### NFR-5: Validation
+
 NTDSWolf shall validate:
 - ESE database magic number and version before processing.
 - PEK authenticator GUID after decryption to confirm the boot key is correct.
@@ -301,6 +328,7 @@ If PEK validation fails (wrong boot key), NTDSWolf shall emit a clear error mess
 ### 3.3 Code Quality
 
 #### NFR-6: Python Standards
+
 - Target: Python 3.14.
 - `from __future__ import annotations` in every module.
 - Full type annotations on all functions, parameters, return types, and class attributes.
@@ -309,17 +337,20 @@ If PEK validation fails (wrong boot key), NTDSWolf shall emit a clear error mess
 - `@dataclass(frozen=True)` for immutable data records.
 
 #### NFR-7: Linting and Type Checking
+
 - Ruff with `select = ["ALL"]`, `line-length = 320`, `target-version = "py314"`.
 - ty with `all = "error"`, `error-on-warning = true`, `python-version = "3.14"`.
 - Zero warnings, zero errors on every commit.
 
 #### NFR-8: Testing
+
 - Unit tests for all decryption routines, data type decoders, and schema resolution.
 - Integration tests using known-good NTDS.dit samples with verified output.
 - Tests run via `uv run pytest`.
 - Test coverage target: 90%+ for core parsing and decryption modules.
 
 #### NFR-9: Documentation
+
 - Module-level docstrings explaining role and key design decisions.
 - Every function gets a docstring explaining WHY it exists.
 - Protocol code references spec sections (e.g., "Per [MS-SAMR] §2.2.11.1").
@@ -328,6 +359,7 @@ If PEK validation fails (wrong boot key), NTDSWolf shall emit a clear error mess
 ### 3.4 Packaging and Distribution
 
 #### NFR-10: Packaging
+
 - Managed with `uv`. No version pins on dependencies.
 - Single `pyproject.toml` with `[project.scripts]` entry point.
 - Installable via `uv tool install ntdswolf` or `pipx install ntdswolf`.
@@ -399,6 +431,7 @@ ntdswolf <ntds.dit> [--system <SYSTEM>] [--bootkey <hex>] [OPTIONS]
 ## 6. Compatibility and Extensibility
 
 ### 6.1 Windows Server Version Support
+
 NTDSWolf shall support NTDS.dit files from:
 - Windows Server 2008 / 2008 R2
 - Windows Server 2012 / 2012 R2
@@ -410,6 +443,7 @@ NTDSWolf shall support NTDS.dit files from:
 Each version may use different PEK encryption, Kerberos key types, or attribute schemas. NTDSWolf shall handle all known variations.
 
 ### 6.2 Future Extensibility
+
 The architecture shall accommodate future additions without major refactoring:
 - ADAM/AD LDS database support.
 - Additional output formats (e.g., Bloodhound JSON ingest).
